@@ -15,32 +15,17 @@ import {
     Toolbar,
     ToolbarButton,
 } from '@mui/x-data-grid';
-import {
-    randomCreatedDate,
-    randomTraderName,
-    randomId,
-    randomArrayItem,
-} from '@mui/x-data-grid-generator';
-
-const roles = ['Market', 'Finance', 'Development'];
-const randomRole = () => {
-    return randomArrayItem(roles);
-};
-
-const initialRows = [
-    
-    { id: 1, name: 'Антонов Сергей', login: '146671328', passport: '', address: '', role: 'Заведующий снаряжением' },
-    { id: 2, name: 'Чёрный Сергей', login: '1053899166', passport: '', address: '', role: 'Арендатор' },
-];
+import { getAllUsers, updateUser, deleteUser } from '../api/admin';
+import { useEffect, useState } from 'react';
 
 function EditToolbar(props) {
     const { setRows, setRowModesModel } = props;
 
     const handleClick = () => {
-        const id = randomId();
+        const id = Date.now(); // или randomId()
         setRows((oldRows) => [
             ...oldRows,
-            { id, name: '', age: '', role: '', isNew: true },
+            { id, name: '', login: '', passport: '', address: '', role: '', isNew: true },
         ]);
         setRowModesModel((oldModel) => ({
             ...oldModel,
@@ -60,8 +45,33 @@ function EditToolbar(props) {
 }
 
 export default function FullFeaturedCrudGrid() {
-    const [rows, setRows] = React.useState(initialRows);
-    const [rowModesModel, setRowModesModel] = React.useState({});
+    const [rows, setRows] = useState([]);
+    const [rowModesModel, setRowModesModel] = useState({});
+    const [errorMessage, setErrorMessage] = useState('');
+
+    useEffect(() => {
+        getAllUsers()
+            .then((data) => {
+                if (!Array.isArray(data)) {
+                    throw new Error("Expected array, got: " + JSON.stringify(data));
+                }
+
+                const formatted = data.map((item, idx) => ({
+                    id: item.id_vk ?? idx + 1,
+                    name: item.fio,
+                    login: item.id_vk,
+                    passport: item.nam,
+                    address: item.adr,
+                    role: item.role ?? 'Арендатор',
+                }));
+
+                setRows(formatted);
+            })
+            .catch((err) => {
+                console.error('Ошибка при загрузке пользователей:', err.message);
+                setErrorMessage('Ошибка при загрузке пользователей');
+            });
+    }, []);
 
     const handleRowEditStop = (params, event) => {
         if (params.reason === GridRowEditStopReasons.rowFocusOut) {
@@ -73,12 +83,37 @@ export default function FullFeaturedCrudGrid() {
         setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.Edit } });
     };
 
-    const handleSaveClick = (id) => () => {
-        setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } });
+    const handleSaveClick = (id) => async () => {
+        const rowToSave = rows.find((row) => row.id === id);
+        if (!rowToSave) return;
+
+        try {
+            console.log('Saving user:', id, rowToSave);
+            await updateUser(id, {
+                fio: rowToSave.name,
+                id_vk: rowToSave.login,
+                nam: rowToSave.passport,
+                adr: rowToSave.address,
+                role: rowToSave.role,
+            });
+            console.log('User updated successfully:', id);
+            setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } });
+        } catch (error) {
+            console.error('Ошибка при сохранении пользователя:', error);
+            setErrorMessage('Ошибка при сохранении пользователя');
+        }
     };
 
-    const handleDeleteClick = (id) => () => {
-        setRows(rows.filter((row) => row.id !== id));
+    const handleDeleteClick = (id) => async () => {
+        try {
+            console.log('Deleting user:', id);
+            await deleteUser(id);
+            setRows(rows.filter((row) => row.id !== id));
+            console.log('User deleted successfully:', id);
+        } catch (error) {
+            console.error('Ошибка при удалении пользователя:', error);
+            setErrorMessage('Ошибка при удалении пользователя');
+        }
     };
 
     const handleCancelClick = (id) => () => {
@@ -88,7 +123,7 @@ export default function FullFeaturedCrudGrid() {
         });
 
         const editedRow = rows.find((row) => row.id === id);
-        if (editedRow.isNew) {
+        if (editedRow?.isNew) {
             setRows(rows.filter((row) => row.id !== id));
         }
     };
@@ -104,36 +139,15 @@ export default function FullFeaturedCrudGrid() {
     };
 
     const columns = [
-        { field: 'id', headerName: 'ID', width: 10, editable: false },
-        {
-          field: 'name',
-          headerName: 'ФИО',
-          width: 220,
-          editable: true,
-        },
-        {
-          field: 'login',
-          headerName: 'ID_VK',
-          editable: true,
-        },
-        {
-          field: 'passport',
-          headerName: 'Документ',
-          editable: true,
-          width: 120,
-        },
-        {
-          field: 'address',
-          headerName: 'Адрес',
-          editable: true,
-          width: 350,
-        },
+        { field: 'id', headerName: 'ID', width: 100, editable: false },
+        { field: 'name', headerName: 'ФИО', width: 220, editable: true },
+        { field: 'login', headerName: 'ID_VK', width: 150, editable: true },
+        { field: 'passport', headerName: 'Документ', width: 150, editable: true },
+        { field: 'address', headerName: 'Адрес', width: 300, editable: true },
         {
             field: 'role',
             headerName: 'Роль',
-            width: 150,
-            align: 'left',
-            headerAlign: 'left',
+            width: 180,
             editable: true,
             type: 'singleSelect',
             valueOptions: ['Арендатор', 'Заведующий снаряжением'],
@@ -141,28 +155,24 @@ export default function FullFeaturedCrudGrid() {
         {
             field: 'actions',
             type: 'actions',
-            headerName: 'Actions',
-            width: 100,
-            cellClassName: 'actions',
+            headerName: 'Действия',
+            width: 120,
             getActions: ({ id }) => {
                 const isInEditMode = rowModesModel[id]?.mode === GridRowModes.Edit;
 
                 if (isInEditMode) {
                     return [
                         <GridActionsCellItem
+                            key="save"
                             icon={<SaveIcon />}
                             label="Save"
-                            material={{
-                                sx: {
-                                    color: 'primary.main',
-                                },
-                            }}
                             onClick={handleSaveClick(id)}
+                            sx={{ color: 'primary.main' }}
                         />,
                         <GridActionsCellItem
+                            key="cancel"
                             icon={<CancelIcon />}
                             label="Cancel"
-                            className="textPrimary"
                             onClick={handleCancelClick(id)}
                             color="inherit"
                         />,
@@ -171,13 +181,14 @@ export default function FullFeaturedCrudGrid() {
 
                 return [
                     <GridActionsCellItem
+                        key="edit"
                         icon={<EditIcon />}
                         label="Edit"
-                        className="textPrimary"
                         onClick={handleEditClick(id)}
                         color="inherit"
                     />,
                     <GridActionsCellItem
+                        key="delete"
                         icon={<DeleteIcon />}
                         label="Delete"
                         onClick={handleDeleteClick(id)}
@@ -189,18 +200,7 @@ export default function FullFeaturedCrudGrid() {
     ];
 
     return (
-        <Box
-            sx={{
-                height: 500,
-                width: '100%',
-                '& .actions': {
-                    color: 'text.secondary',
-                },
-                '& .textPrimary': {
-                    color: 'text.primary',
-                },
-            }}
-        >
+        <Box sx={{ height: 500, width: '100%' }}>
             <DataGrid
                 localeText={ruRU.components.MuiDataGrid.defaultProps.localeText}
                 rows={rows}
@@ -211,11 +211,11 @@ export default function FullFeaturedCrudGrid() {
                 onRowEditStop={handleRowEditStop}
                 processRowUpdate={processRowUpdate}
                 slots={{ toolbar: EditToolbar }}
-                slotProps={{
-                    toolbar: { setRows, setRowModesModel },
-                }}
-                showToolbar
+                slotProps={{ toolbar: { setRows, setRowModesModel } }}
             />
+            {errorMessage && (
+                <div style={{ color: 'red', marginTop: 10 }}>{errorMessage}</div>
+            )}
         </Box>
     );
 }
