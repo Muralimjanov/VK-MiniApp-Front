@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no, user-scalable=no, viewport-fit=cover"
+    />
+    <title>VK Mini App Boilerplate</title>
+  </head>
+  <body>
+    <script type="text/javascript">
+function closePrint () {
+  document.body.removeChild(this.__container__);
+}
+ 
+function setPrint () {
+  this.contentWindow.__container__ = this;
+  this.contentWindow.onbeforeunload = closePrint;
+  this.contentWindow.onafterprint = closePrint;
+  // Required for IE
+  this.contentWindow.focus();
+  this.contentWindow.print();
+}
+ 
+function printPage(sURL) {
+  var oHideFrame = document.createElement("iframe");
+  oHideFrame.onload = setPrint;
+  oHideFrame.style.position = "fixed";
+  oHideFrame.style.right = "0";
+  oHideFrame.style.bottom = "0";
+  oHideFrame.style.width = "0";
+  oHideFrame.style.height = "0";
+  oHideFrame.style.border = "0";
+  oHideFrame.src = sURL;
+  document.body.appendChild(oHideFrame);
+}
+</script>
+<p>
+  <span onclick="printPage(`https:\/\/equpment-rent-club.ru/blank-akt-priema-peredachi2.html`);">Print external page!</span>
+</p>
+  </body>
+</html>

@@ -1,0 +1,1 @@
+export { Equipments } from './Equipments';
