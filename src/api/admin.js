@@ -1,7 +1,6 @@
 import { instance } from './axios';
 import { makeRequest } from "../helpers/makeRequest.js";
 
-// Экипировка
 export const getAdminEquipments = async () => {
   return await instance.get('/api/equipment/with-availability');
 };
@@ -82,4 +81,7 @@ export const deleteRequest = async (id) => {
 };
 
 
-
+export const getUserRequests = async (id) => {
+  const res = await makeRequest('get', `/api/admin/requests/user/${id}`);
+  return res;
+};

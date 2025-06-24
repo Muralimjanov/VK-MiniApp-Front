@@ -11,6 +11,8 @@ import PrintIcon from "@mui/icons-material/Print";
 import Modal from "@mui/material/Modal";
 import Snackbar from "@mui/material/Snackbar";
 import { ruRU } from "@mui/x-data-grid/locales";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+
 import {
   GridRowModes,
   DataGrid,
@@ -192,10 +194,11 @@ export default function AdminApplicationTable1({ onSelectApplication }) {
               id_zajav: app.raw.id_zajav,
               datas: app.raw.datas,
               user_name: app.raw.fio,
+              id_user: app.raw.id_user,
             });
           }
         };
-
+      
         return isInEditMode
           ? [
               <GridActionsCellItem
@@ -231,8 +234,16 @@ export default function AdminApplicationTable1({ onSelectApplication }) {
                 onClick={handlePrintClick}
                 color="primary"
               />,
+              <GridActionsCellItem
+                key="select"
+                icon={<VisibilityIcon />}
+                label="Выбрать"
+                onClick={selectHandler}
+                color="info"
+              />,
             ];
-      },
+      }
+      
     },
   ];
 

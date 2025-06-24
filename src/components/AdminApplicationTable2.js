@@ -11,13 +11,28 @@ import { ruRU } from '@mui/x-data-grid/locales';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/DeleteOutlined';
-import SaveIcon from '@mui/icons-material/Save';
+import SaveIcon from '@mui/icons-material/Close';
 import CancelIcon from '@mui/icons-material/Close';
 import PropTypes from 'prop-types';
 import { instance } from '../api/axios';
 
 function EditToolbar({ setRows, setRowModesModel }) {
   const handleClick = () => {
+    const id = Date.now();
+    setRows((prev) => [
+      ...prev,
+      {
+        id,
+        datas: new Date().toISOString().split('T')[0],
+        status: '',
+        komment: '',
+        isNew: true,
+      },
+    ]);
+    setRowModesModel((prev) => ({
+      ...prev,
+      [id]: { mode: GridRowModes.Edit, fieldToFocus: 'datas' },
+    }));
   };
 
   return (
@@ -31,26 +46,26 @@ function EditToolbar({ setRows, setRowModesModel }) {
   );
 }
 
-export default function AdminApplicationTable2({ userId }) {
+export default function AdminApplicationTable2({ userId, applications }) {
   const [rows, setRows] = useState([]);
   const [rowModesModel, setRowModesModel] = useState({});
 
   useEffect(() => {
-    const fetchRequests = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await instance.get('/api/admin/requests', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const filtered = response.data.filter((req) => req.id_user === userId);
-        setRows(filtered);
-      } catch (error) {
-        console.error('Ошибка при загрузке заявок:', error);
-      }
-    };
-
-    if (userId) fetchRequests();
-  }, [userId]);
+    // Используем проп applications вместо отдельного запроса
+    if (applications && Array.isArray(applications)) {
+      const formattedRows = applications.map((app) => ({
+        id: app.id_zajav,
+        datas: app.datas?.split('T')[0] || '',
+        status: app.status || 'На рассмотрении',
+        komment: app.komment || '',
+      }));
+      console.log('Форматированные заявки для Table2:', formattedRows);
+      setRows(formattedRows);
+    } else {
+      setRows([]);
+      console.log('applications не определен или пуст:', applications);
+    }
+  }, [applications]);
 
   const handleRowEditStop = (params, event) => {
     if (params.reason === GridRowEditStopReasons.rowFocusOut) {
@@ -147,4 +162,5 @@ export default function AdminApplicationTable2({ userId }) {
 
 AdminApplicationTable2.propTypes = {
   userId: PropTypes.number,
+  applications: PropTypes.array,
 };

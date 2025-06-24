@@ -20,6 +20,7 @@ import Table1 from "./../../components/AdminApplicationTable1.js";
 import Table2 from "./../../components/AdminApplicationTable2.js";
 import * as React from 'react';
 import { instance } from '../../api/axios';
+import { getUserRequests } from "../../api/admin.js";
 
 export const AdminApplications = ({ id, fetchedUser }) => {
   const [isLoading, setLoading] = useState(true);
@@ -30,6 +31,7 @@ export const AdminApplications = ({ id, fetchedUser }) => {
 
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [selectedEquipment, setSelectedEquipment] = useState([]);
+  const [applications, setApplications] = useState([]);
 
   const [modalActive, setModalActive] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
@@ -57,14 +59,37 @@ export const AdminApplications = ({ id, fetchedUser }) => {
     loadEquipments();
   }, [equipments]);
 
+  useEffect(() => {
+    if (!selectedApplication?.id_user) return;
+
+    const fetchUserApplications = async () => {
+      try {
+        const data = await getUserRequests(selectedApplication.id_user);
+        console.log('Полученные заявки пользователя:', data);
+        setApplications(data || []);
+      } catch (e) {
+        console.error('Ошибка при загрузке заявок пользователя:', e);
+        setApplications([]);
+      }
+    };
+
+    fetchUserApplications();
+  }, [selectedApplication?.id_user]);
+
+  useEffect(() => {
+    console.log('selectedApplication?.id_user:', selectedApplication?.id_user);
+  }, [selectedApplication]);
+
   const fetchEquipmentByApplication = async (applicationId) => {
     try {
-      const response = await instance.get(`/admin/requests/${applicationId}/items`);
-      setSelectedEquipment(response.data);
+      setSelectedEquipment(selectedApplication?.equipment || []);
+      console.log('Оборудование из selectedApplication:', selectedApplication?.equipment);
     } catch (e) {
       console.error("Ошибка при загрузке оборудования:", e);
+      setSelectedEquipment([]);
     }
   };
+  
 
   const openPdfModal = (blob) => {
     const url = URL.createObjectURL(blob);
@@ -86,7 +111,7 @@ export const AdminApplications = ({ id, fetchedUser }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await instance.post(
-        `/admin/act - ${ type }`,
+        `/admin/act - ${type}`,
         {
           application: {
             id: selectedApplication.id_zajav,
@@ -96,82 +121,84 @@ export const AdminApplications = ({ id, fetchedUser }) => {
           equipment: selectedEquipment,
         },
         {
-          headers: { Authorization: `Bearer ${ token } `},
-    responseType: 'blob',
+          headers: { Authorization: `Bearer ${token} ` },
+          responseType: 'blob',
         }
       );
-openPdfModal(response.data);
+      openPdfModal(response.data);
     } catch (e) {
-  console.error("Ошибка при печати акта:", e);
-}
+      console.error("Ошибка при печати акта:", e);
+    }
   };
 
-const handleApplicationSelect = async (application) => {
-  setSelectedApplication(application);
-  await fetchEquipmentByApplication(application.id_zajav);
-};
+  const handleApplicationSelect = async (application) => {
+    console.log('Выбрана заявка:', application);
+    setSelectedApplication(application);
+    await fetchEquipmentByApplication(application.id_zajav);
+  };
 
-return (
-  <>
-    <Panel id={id}>
-      <PanelHeader before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}>
-        Администрирование заявок
-      </PanelHeader>
+  return (
+    <>
+      <Panel id={id}>
+        <PanelHeader before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}>
+          Администрирование заявок
+        </PanelHeader>
 
-      <Group header={<Header size="s">Список заявок</Header>}>
-        <Table1 onSelectApplication={handleApplicationSelect} />
-      </Group>
+        <Group header={<Header size="s">Список заявок</Header>}>
+          <Table1 onSelectApplication={handleApplicationSelect} />
+        </Group>
 
-      <Group header={<Header size="s">Заявки пользователя</Header>}>
-        <Table2 userId={selectedApplication?.id_user} />{selectedApplication && (
-          <Div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <Button
-              type="button"
-              size="l"
-              stretched
-              onClick={(e) => handlePrint("transmission", e)}
+        <Group header={<Header size="s">Заявки пользователя</Header>}>
+          <Table2 userId={selectedApplication?.id_user ? Number(selectedApplication.id_user) : null} applications={applications} />
+          {selectedApplication && (
+            <Div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <Button
+                type="button"
+                size="l"
+                stretched
+                onClick={(e) => handlePrint("transmission", e)}
+              >
+                Печать акта передачи
+              </Button>
+              <Button
+                type="button"
+                size="l"
+                stretched
+                appearance="positive"
+                onClick={(e) => handlePrint("reception", e)}
+              >
+                Печать акта приёма
+              </Button>
+            </Div>
+          )}
+        </Group>
+      </Panel>
+
+      <ModalRoot activeModal={modalActive ? 'pdfModal' : null} onClose={closePdfModal}>
+        <ModalPage
+          id="pdfModal"
+          header={
+            <ModalPageHeader
+              left={<PanelHeaderButton onClick={closePdfModal}>Закрыть</PanelHeaderButton>}
             >
-              Печать акта передачи
-            </Button>
-            <Button
-              type="button"
-              size="l"
-              stretched
-              appearance="positive"
-              onClick={(e) => handlePrint("reception", e)}
-            >
-              Печать акта приёма
-            </Button>
-          </Div>
-        )}
-      </Group>
-    </Panel>
-
-    <ModalRoot activeModal={modalActive ? 'pdfModal' : null} onClose={closePdfModal}>
-      <ModalPage
-        id="pdfModal"
-        header={
-          <ModalPageHeader
-            left={<PanelHeaderButton onClick={closePdfModal}>Закрыть</PanelHeaderButton>}
-          >
-            Просмотр PDF
-          </ModalPageHeader>
-        }
-        onClose={closePdfModal}
-      >
-        {pdfBlobUrl ? (
-          <iframe
-            src={pdfBlobUrl}
-            style={{ width: '100%', height: '100vh', border: 'none' }}
-            title="PDF Preview"
-          />
-        ) : (
-          <Div>Загрузка...</Div>
-        )}
-      </ModalPage>
-    </ModalRoot>
-  </>
-);
+              Просмотр PDF
+            </ModalPageHeader>
+          }
+          onClose={closePdfModal}
+        >
+          {pdfBlobUrl ? (
+            <iframe
+              src={pdfBlobUrl}
+              style={{ width: '100%', height: '100vh', border: 'none' }}
+              title="PDF Preview"
+            />
+          ) : (
+            <Div>Загрузка...</Div>
+          )}
+        </ModalPage>
+      </ModalRoot>
+    </>
+  );
 };
 
 AdminApplications.propTypes = {

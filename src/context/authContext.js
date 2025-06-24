@@ -9,7 +9,7 @@ export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loading, setLoading] = useState(true);
-
+    
     const saveAuthData = (token, user) => {
         localStorage.setItem('token', token);
         localStorage.setItem('role', user.id_rol);

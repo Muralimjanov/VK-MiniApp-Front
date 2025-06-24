@@ -15,6 +15,8 @@ import { ruRU } from '@mui/x-data-grid/locales';
 import { getRecentRequests, createRequest, updateRequest, deleteRequest } from '../../api/requests.js';
 import { randomId } from '@mui/x-data-grid-generator';
 import { Icon24Done, Icon24Cancel, Icon24Info } from '@vkontakte/icons';
+import {DataContext} from "../../context/dataContext.js"
+import { useAuth } from '../../context/authContext.js';
 
 const headCells = [
   {
@@ -70,7 +72,7 @@ const headCells = [
 export const UserEquipments = ({ id, fetchedUser }) => {
   const [isLoading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const dataContext = useContext(createContext(null));
+  const dataContext = useContext(DataContext);
   const { photo_200, city, first_name, last_name } = { ...fetchedUser };
   const routeNavigator = useRouteNavigator();
   const equipments = dataContext?.data?.equipments;
@@ -82,59 +84,61 @@ export const UserEquipments = ({ id, fetchedUser }) => {
   const [activeModal, setActiveModal] = useState(null);
   const [requestBeingSent, setRequestBeingSent] = useState(false);
   const [lastSentRequest, setLastSentRequest] = useState(null);
+  const { user, isAuthenticated } = useAuth();
+
 
   const showNotification = (message, type = 'info') => {
     setNotification({ message, type, show: true });
     setTimeout(() => setNotification({ message: '', type: '', show: false }), 4000);
   };
 
-const loadRequests = async () => {
-  try {
-    console.log('Загружаем заявки с сервера...');
-    const response = await getRecentRequests();
-    const fetchedRequests = response.data || response;
-    console.log('Полученные заявки:', fetchedRequests);
-    
-    if (Array.isArray(fetchedRequests)) {
-      const formattedRequests = fetchedRequests.map(request => ({
-        id: request.id_zajav,
-        created_at: request.datas,
-        status: getStatusById(request.id_status), 
-        total_cost: request.summ,
-        start_date: request.datas,
-        end_date: request.datapo,
-        items: transformServerItemsToLocal(request), 
-        original: request 
-      }));
+  const loadRequests = async () => {
+    try {
+      console.log('Загружаем заявки с сервера...');
+      const response = await getRecentRequests();
+      const fetchedRequests = response.data || response;
+      console.log('Полученные заявки:', fetchedRequests);
 
-      const sortedRequests = formattedRequests.sort((a, b) => 
-        new Date(b.created_at) - new Date(a.created_at)
-      );
-      
-      setRequests(sortedRequests);
-    } else {
-      console.error('Некорректный формат данных заявок:', fetchedRequests);
+      if (Array.isArray(fetchedRequests)) {
+        const formattedRequests = fetchedRequests.map(request => ({
+          id: request.id_zajav,
+          created_at: request.datas,
+          status: getStatusById(request.id_status),
+          total_cost: request.summ,
+          start_date: request.datas,
+          end_date: request.datapo,
+          items: transformServerItemsToLocal(request),
+          original: request
+        }));
+
+        const sortedRequests = formattedRequests.sort((a, b) =>
+          new Date(b.created_at) - new Date(a.created_at)
+        );
+
+        setRequests(sortedRequests);
+      } else {
+        console.error('Некорректный формат данных заявок:', fetchedRequests);
+        setRequests([]);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки заявок:', error);
+      showNotification('Ошибка загрузки заявок с сервера', 'error');
       setRequests([]);
     }
-  } catch (error) {
-    console.error('Ошибка загрузки заявок:', error);
-    showNotification('Ошибка загрузки заявок с сервера', 'error');
-    setRequests([]);
-  }
-};
+  };
 
-const getStatusById = (statusId) => {
-  switch (statusId) {
-    case 1:
-      return 'на рассмотрении';
-    case 2:
-      return 'одобрено';
-    case 3:
-      return 'отклонено';
-    default:
-      return 'неизвестен';
-  }
-};
+  const getStatusById = (statusId) => {
+    switch (statusId) {
+      case 1:
+        return 'на рассмотрении';
+      case 2:
+        return 'одобрено';
+      case 3:
+        return 'отклонено';
+      default:
+        return 'неизвестен';
+    }
+  };
 
   useEffect(() => {
     console.log('Компонент загружен, загружаем заявки...');
@@ -193,11 +197,11 @@ const getStatusById = (statusId) => {
 
   const handleAddToCart = (item) => {
     console.log('Добавляем товар в корзину:', item);
-    
+
     const existingItemIndex = selectedItems.findIndex(
       selectedItem => selectedItem.originalId === item.id_vid || selectedItem.originalId === item.id
     );
-    
+
     if (existingItemIndex !== -1) {
       setSelectedItems(prevItems =>
         prevItems.map((selectedItem, index) =>
@@ -223,136 +227,143 @@ const getStatusById = (statusId) => {
     }
   };
 
-  
-const handleCreateRequest = async () => {
-  if (selectedItems.length === 0) {
-    showNotification('Выберите товары для заявки', 'error');
-    return;
-  }
 
-  setRequestBeingSent(true);
-  
-  try {
-    console.log('Создаем заявку с товарами:', selectedItems);
-    
-    // Получаем ID пользователя (нужно будет адаптировать под вашу систему)
-    const userId = fetchedUser?.id || fetchedUser?.id_user; 
-    
-    if (!userId) {
-      throw new Error('ID пользователя не найден');
+  const handleCreateRequest = async () => {
+    if (selectedItems.length === 0) {
+      showNotification('Выберите товары для заявки', 'error');
+      return;
     }
-    
-    const totalSum = calculateTotalCost();
-    
-    const startDate = valueCalendar && valueCalendar[0] 
-      ? new Date(valueCalendar[0]).toISOString().split('T')[0] 
-      : new Date().toISOString().split('T')[0];
-    
-    const endDate = valueCalendar && valueCalendar[1] 
-      ? new Date(valueCalendar[1]).toISOString().split('T')[0] 
-      : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]; 
-    
-    const requestData = {
-      id_user: userId,
-      datas: startDate,
-      datapo: endDate,
-      summ: totalSum,
-      id_status: 1,
-      id_vid: selectedItems[0]?.originalId || null
-    };
 
-    console.log('Отправляем данные на сервер:', requestData);
-    
-    const response = await createRequest(requestData);
-    console.log('Ответ сервера при создании заявки:', response);
+    setRequestBeingSent(true);
 
-    setLastSentRequest({
-      id: response.data?.id_zajav || response.id_zajav,
-      items: [...selectedItems],
-      total_cost: totalSum,
-      created_at: new Date().toISOString(),
-      status: 'на рассмотрении'
-    });
+    try {
+      console.log('Создаем заявку с товарами:', selectedItems);
 
-    await loadRequests();
-
-    setSelectedItems([]);
-    
-    setActiveModal('request-sent');
-    
-    showNotification('Заявка успешно создана!', 'success');
-    
-  } catch (error) {
-    console.error('Ошибка создания заявки:', error);
-    
-    let errorMessage = 'Неизвестная ошибка';
-    
-    if (error.response) {
-      console.error('Данные ошибки:', error.response.data);
-      console.error('Статус ошибки:', error.response.status);
-      
-      if (error.response.data && error.response.data.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.response.status === 400) {
-        errorMessage = 'Некорректные данные заявки';
-      } else if (error.response.status === 401) {
-        errorMessage = 'Пользователь не авторизован';
-      } else {
-        errorMessage = `Ошибка сервера: ${error.response.status}`;
+      if (!user || !isAuthenticated) {
+        console.error('Пользователь не аутентифицирован:', { user, isAuthenticated });
+        showNotification('Пожалуйста, выполните вход для создания заявки', 'error');
+        return;
       }
-    } else if (error.request) {
-      errorMessage = 'Нет ответа от сервера';
-    } else {
-      errorMessage = error.message || 'Ошибка настройки запроса';
+      const userId = user.id_user || user.id_vk;
+
+      if (!userId) {
+        console.error('Данные пользователя:', user);
+        throw new Error('ID пользователя не найден');
+      }
+
+      const totalSum = calculateTotalCost();
+
+      const startDate = valueCalendar && valueCalendar[0]
+        ? new Date(valueCalendar[0]).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
+
+      const endDate = valueCalendar && valueCalendar[1]
+        ? new Date(valueCalendar[1]).toISOString().split('T')[0]
+        : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const requestData = {
+        id_user: userId,
+        datas: startDate,
+        datapo: endDate,
+        summ: totalSum,
+        id_status: 1,
+        id_vid: selectedItems[0]?.originalId || null
+      };
+
+      console.log('Отправляем данные на сервер:', requestData);
+
+      const response = await createRequest(requestData);
+      console.log('Ответ сервера при создании заявки:', response);
+
+      setLastSentRequest({
+        id: response.data?.id_zajav || response.id_zajav,
+        items: [...selectedItems],
+        total_cost: totalSum,
+        created_at: new Date().toISOString(),
+        status: 'на рассмотрении'
+      });
+
+      await loadRequests();
+
+      setSelectedItems([]);
+      setActiveModal('request-sent');
+
+      showNotification('Заявка успешно создана!', 'success');
+
+    } catch (error) {
+      console.error('Ошибка создания заявки:', error);
+
+      let errorMessage = 'Неизвестная ошибка';
+
+      if (error.response) {
+        console.error('Данные ошибки:', error.response.data);
+        console.error('Статус ошибки:', error.response.status);
+
+        if (error.response.data && error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.status === 400) {
+          errorMessage = 'Некорректные данные заявки';
+        } else if (error.response.status === 401) {
+          errorMessage = 'Пользователь не авторизован';
+        } else {
+          errorMessage = `Ошибка сервера: ${error.response.status}`;
+        }
+      } else if (error.request) {
+        errorMessage = 'Нет ответа от сервера';
+        console.error('Детали запроса:', error.request);
+      } else {
+        errorMessage = error.message || 'Ошибка настройки запроса';
+      }
+
+      showNotification(`Ошибка при создании заявки: ${errorMessage}`, 'error');
+      console.error('Полная ошибка:', error);
+
+    } finally {
+      setRequestBeingSent(false);
     }
-    
-    showNotification(`Ошибка при создании заявки: ${errorMessage}`, 'error');
-  } finally {
-    setRequestBeingSent(false);
-  }
 };
 
-const handleUpdateRequestItem = async (requestId, updatedItem) => {
-  try {
-    console.log('Обновляем заявку:', requestId, updatedItem);
-    
-   
-    const originalRequest = requests.find(req => req.id === requestId)?.original;
-    if (!originalRequest) {
-      throw new Error('Оригинальная заявка не найдена');
-    }
- 
-    const updateData = {
-      id_user: originalRequest.id_user,
-      datas: originalRequest.datas,
-      datapo: originalRequest.datapo,
-      summ: updatedItem.zenapr * updatedItem.kolich, 
-      id_status: originalRequest.id_status,
-      id_vid: updatedItem.originalId
-    };
+  const handleUpdateRequestItem = async (requestId, updatedItem) => {
+    try {
+      console.log('Обновляем заявку:', requestId, updatedItem);
 
-    const response = await updateRequest(requestId, updateData);
-    console.log('Ответ сервера при обновлении:', response);
-    
-    await loadRequests();
-    showNotification('Заявка обновлена', 'success');
-    
-  } catch (error) {
-    console.error('Ошибка обновления заявки:', error);
-    showNotification(`Ошибка при обновлении заявки: ${error.message || 'Неизвестная ошибка'}`, 'error');
-  }
-};
+
+      const originalRequest = requests.find(req => req.id === requestId)?.original;
+      if (!originalRequest) {
+        throw new Error('Оригинальная заявка не найдена');
+      }
+
+      const updateData = {
+        id_user: originalRequest.id_user,
+        datas: originalRequest.datas,
+        datapo: originalRequest.datapo,
+        summ: updatedItem.zenapr * updatedItem.kolich,
+        id_status: originalRequest.id_status,
+        id_vid: updatedItem.originalId
+      };
+
+      const response = await updateRequest(requestId, updateData);
+      console.log('Ответ сервера при обновлении:', response);
+
+      await loadRequests();
+      showNotification('Заявка обновлена', 'success');
+
+    } catch (error) {
+      console.error('Ошибка обновления заявки:', error);
+      showNotification(`Ошибка при обновлении заявки: ${error.message || 'Неизвестная ошибка'}`, 'error');
+    }
+  };
 
   const handleDeleteRequest = async (requestId) => {
     try {
       console.log('Удаляем заявку:', requestId);
-      
+
       const response = await deleteRequest(requestId);
       console.log('Ответ сервера при удалении:', response);
-      
+
       await loadRequests();
       showNotification('Заявка удалена', 'info');
-      
+
     } catch (error) {
       console.error('Ошибка удаления заявки:', error);
       showNotification(`Ошибка при удалении заявки: ${error.message || 'Неизвестная ошибка'}`, 'error');
@@ -379,29 +390,31 @@ const handleUpdateRequestItem = async (requestId, updatedItem) => {
   const handleDeleteLocalItem = (itemId) => {
     const deletedItem = selectedItems.find(item => item.id === itemId);
     setSelectedItems(prevItems => prevItems.filter(item => item.id !== itemId));
-    
+
     if (deletedItem) {
       showNotification(`"${deletedItem.vnaim}" удален из заявки`, 'info');
     }
   };
 
-const transformServerItemsToLocal = (serverRequest) => {
-  console.log('Преобразуем данные с сервера:', serverRequest);
-  
-  if (!serverRequest) {
-    return [];
-  }
-  return [{
-    id: serverRequest.id_zajav,
-    originalId: serverRequest.id_vid,
-    vnaim: serverRequest.vnaim || 'Товар без названия',
-    kolich: 1, 
-    zenaz: 0,
-    zenapr: serverRequest.summ || 0,
-    sost: '',
-    tnaim: '' 
-  }];
-};
+  const transformServerItemsToLocal = (serverRequest) => {
+    console.log('Преобразуем данные с сервера:', serverRequest);
+    
+    if (!serverRequest) {
+      return [];
+    }
+    
+    return [{
+      id: serverRequest.id_zajav || randomId(),
+      originalId: serverRequest.id_vid,
+      vnaim: serverRequest.vnaim || 'Товар без названия',
+      kolich: 1, 
+      zenaz: 0,
+      zenapr: serverRequest.summ || 0,
+      sost: '',
+      tnaim: '' 
+    }];
+  };
+
   const getRequestStatusWithIcon = (status) => {
     switch (status) {
       case 'на рассмотрении':
@@ -443,18 +456,18 @@ const transformServerItemsToLocal = (serverRequest) => {
         <SplitLayout>
           <SplitCol width={'70%'}>
             <ThemeProvider theme={createTheme({}, ruRU)}>
-              <Table 
-                rows={JSON.stringify(equipments || [])} 
+              <Table
+                rows={JSON.stringify(equipments || [])}
                 headCells={headCells}
                 onAddToCart={handleAddToCart}
               />
             </ThemeProvider>
           </SplitCol>
           <SplitCol width={'250px'} cs={{ 'padding-left': '10px' }} ref={calendarRef}>
-            <Calendar 
-              onChange={onChangeCalendar} 
-              value={new Date()} 
-              className={['busy-' + 9, 'mbusy-' + 11]} 
+            <Calendar
+              onChange={onChangeCalendar}
+              value={new Date()}
+              className={['busy-' + 9, 'mbusy-' + 11]}
             />
             <table border={1} style={{ 'width': '100%' }}>
               <thead>
@@ -482,9 +495,9 @@ const transformServerItemsToLocal = (serverRequest) => {
             Новая заявка
           </Header>
         }>
-          <Div style={{ 
-            backgroundColor: '#f0f9ff', 
-            padding: '12px', 
+          <Div style={{
+            backgroundColor: '#f0f9ff',
+            padding: '12px',
             borderRadius: '8px',
             marginBottom: '12px',
             border: '1px solid #bae6fd'
@@ -498,16 +511,16 @@ const transformServerItemsToLocal = (serverRequest) => {
               </div>
             </div>
           </Div>
-          
-          <TableApplication 
+
+          <TableApplication
             selectedItems={selectedItems}
             onUpdateItem={handleUpdateLocalItem}
             onDeleteItem={handleDeleteLocalItem}
           />
-          
+
           <Div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginTop: '12px' }}>
-            <Button 
-              size="s" 
+            <Button
+              size="s"
               appearance="secondary"
               onClick={() => {
                 setSelectedItems([]);
@@ -517,8 +530,8 @@ const transformServerItemsToLocal = (serverRequest) => {
             >
               Очистить все
             </Button>
-            <Button 
-              size="s" 
+            <Button
+              size="s"
               appearance="primary"
               onClick={handleCreateRequest}
               loading={requestBeingSent}
@@ -536,35 +549,35 @@ const transformServerItemsToLocal = (serverRequest) => {
             console.log('Отображаем заявку:', request);
             const requestItems = transformServerItemsToLocal(request.items || []);
             const statusInfo = getRequestStatusWithIcon(request.status);
-            
+
             return (
               <Div key={request.id} style={{ marginBottom: '16px' }}>
-                <div style={{ 
-                  backgroundColor: '#fafafa', 
-                  padding: '16px', 
+                <div style={{
+                  backgroundColor: '#fafafa',
+                  padding: '16px',
                   borderRadius: '12px',
                   border: '1px solid #e0e0e0'
                 }}>
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                     marginBottom: '12px'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <strong>Заявка №{request.id}</strong>
-                      <div style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
                         gap: '4px',
-                        color: statusInfo.color 
+                        color: statusInfo.color
                       }}>
                         {statusInfo.icon}
                         <span style={{ fontSize: '14px' }}>{statusInfo.text}</span>
                       </div>
                     </div>
-                    <Button 
-                      size="s" 
+                    <Button
+                      size="s"
                       appearance="secondary"
                       onClick={() => handleDeleteRequest(request.id)}
                     >
@@ -572,8 +585,8 @@ const transformServerItemsToLocal = (serverRequest) => {
                     </Button>
                   </div>
 
-                  <div style={{ 
-                    display: 'grid', 
+                  <div style={{
+                    display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
                     gap: '12px',
                     marginBottom: '16px',
@@ -598,10 +611,10 @@ const transformServerItemsToLocal = (serverRequest) => {
                   </div>
 
                   <Separator />
-                  
+
                   {requestItems.length > 0 && (
                     <div style={{ marginTop: '16px' }}>
-                      <TableApplication 
+                      <TableApplication
                         selectedItems={requestItems}
                         onUpdateItem={(updatedItem) => handleUpdateRequestItem(request.id, updatedItem)}
                         onDeleteItem={(itemId) => {
@@ -618,7 +631,7 @@ const transformServerItemsToLocal = (serverRequest) => {
           })}
         </Group>
       )}
-      
+
     </Panel>
   );
 };
