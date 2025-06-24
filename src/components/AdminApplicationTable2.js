@@ -39,7 +39,7 @@ export default function AdminApplicationTable2({ userId }) {
     const fetchRequests = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await instance.get('/admin/requests', {
+        const response = await instance.get('api/admin/requests', {
           headers: { Authorization: `Bearer ${token}` },
         });
         const filtered = response.data.filter((req) => req.id_user === userId);

@@ -56,10 +56,12 @@ export const getAllRequests = async () => {
   return data;
 };
 
-// export const getRequests = async () => {
-//   const response = await instance.get('/admin/requests');
-//   return response.data;
-// };
+export const createRequest = async (data) => {
+  console.log('API: createRequest', data);
+  const res = await makeRequest('post', '/api/admin/requests', data);
+  console.log('API: createRequest response:', res);
+  return res;
+};
 
 export const getRequestItems = async (id) => {
   return await instance.get(`/api/admin/requests/${id}/items`);

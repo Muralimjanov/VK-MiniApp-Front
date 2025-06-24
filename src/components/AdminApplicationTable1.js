@@ -18,7 +18,13 @@ import {
   GridRowEditStopReasons,
   GridToolbarContainer,
 } from "@mui/x-data-grid";
-import { getAllRequests, updateRequest, deleteRequest } from "../api/admin";
+
+import {
+  getAllRequests,
+  updateRequest,
+  deleteRequest,
+  createRequest,
+} from "../api/admin"; // твои API функции
 
 function EditToolbar({ setRows, setRowModesModel }) {
   const handleClick = () => {
@@ -28,8 +34,9 @@ function EditToolbar({ setRows, setRowModesModel }) {
       {
         id,
         name: "",
-        status: "",
-        date: new Date().toISOString().split("T")[0],
+        status: "На рассмотрении",
+        datespo: `${new Date().toISOString().slice(0, 10)} - ${new Date().toISOString().slice(0, 10)}`,
+        summ: 0,
         isNew: true,
       },
     ]);
@@ -57,24 +64,28 @@ export default function AdminApplicationTable1({ onSelectApplication }) {
   const [modalUrl, setModalUrl] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Загрузка данных
+  const loadData = async () => {
+    try {
+      const list = await getAllRequests();
+      if (!Array.isArray(list)) throw new Error("Ожидался массив заявок");
+      const formatted = list.map((item) => ({
+        id: item.id_zajav,
+        name: item.fio || `Пользователь ${item.id_user}`,
+        status: item.status || "На рассмотрении",
+        datespo: `${item.datas?.slice(0, 10) || ""} - ${item.datapo?.slice(0, 10) || ""}`,
+        summ: item.summ || 0,
+        raw: item,
+      }));
+      setRows(formatted);
+      setErrorMessage("");
+    } catch (error) {
+      setErrorMessage("Ошибка загрузки заявок: " + error.message);
+    }
+  };
+
   useEffect(() => {
-    getAllRequests()
-      .then((list) => {
-        if (!Array.isArray(list)) throw new Error("Ожидался массив заявок");
-        const formatted = list.map((item) => ({
-          id: item.id_zajav,
-          name: item.fio || `Пользователь ${item.id_user}`,
-          status: item.status || "На рассмотрении",
-          datespo: `${item.datas?.slice(0, 10)} - ${item.datapo?.slice(0, 10)}`,
-          summ: item.summ,
-          raw: item, // оригинал заявки
-        }));
-        setRows(formatted);
-      })
-      .catch((error) => {
-        console.error("Ошибка при загрузке заявок:", error.message);
-        setErrorMessage("Ошибка загрузки заявок");
-      });
+    loadData();
   }, []);
 
   const handleRowEditStop = (params, event) => {
@@ -91,41 +102,80 @@ export default function AdminApplicationTable1({ onSelectApplication }) {
   };
 
   const handleSaveClick = (id) => async () => {
-    setRowModesModel((prev) => ({
-      ...prev,
-      [id]: { mode: GridRowModes.View },
-    }));
     const rowToSave = rows.find((row) => row.id === id);
-    if (!rowToSave) return;
+    if (!rowToSave) {
+      setErrorMessage("Не найдена запись для сохранения");
+      return;
+    }
+
+    if (!rowToSave.name || !rowToSave.name.trim()) {
+      setErrorMessage("ФИО обязательно для заполнения");
+      return;
+    }
+
+    let startDate = null;
+    let endDate = null;
+    if (rowToSave.datespo) {
+      const parts = rowToSave.datespo.split(" - ");
+      startDate = parts[0] || null;
+      endDate = parts[1] || null;
+    }
+
+    const dataForApi = {
+      fio: rowToSave.name,
+      datas: startDate,
+      datapo: endDate,
+      status: rowToSave.status,
+      summ: rowToSave.summ || 0,
+    };
 
     try {
-      const [startDate, endDate] = rowToSave.datespo.split(" - ");
-      const dataForApi = {
-        datas: startDate,
-        datapo: endDate,
-        status: rowToSave.status,
-        summ: rowToSave.summ,
-      };
-      await updateRequest(id, dataForApi);
+      setRowModesModel((prev) => ({
+        ...prev,
+        [id]: { mode: GridRowModes.View },
+      }));
 
-      setRows((prev) =>
-        prev.map((row) =>
-          row.id === id ? { ...row, ...rowToSave, isNew: false } : row
-        )
-      );
+      if (rowToSave.isNew) {
+        const savedData = await createRequest(dataForApi);
+        setRows((prev) =>
+          prev.map((row) =>
+            row.id === id
+              ? {
+                  ...row,
+                  id: savedData.id_zajav || savedData.id,
+                  name: savedData.fio || row.name,
+                  status: savedData.status || row.status,
+                  datespo: `${savedData.datas?.slice(0, 10) || ""} - ${savedData.datapo?.slice(0, 10) || ""}`,
+                  summ: savedData.summ || row.summ,
+                  raw: savedData,
+                  isNew: false,
+                }
+              : row
+          )
+        );
+      } else {
+        await updateRequest(id, dataForApi);
+        await loadData(); // Обновляем данные из БД
+      }
+      setErrorMessage("");
     } catch (error) {
-      console.error("Ошибка при сохранении заявки:", error);
-      setErrorMessage("Ошибка при сохранении заявки");
+      setErrorMessage("Ошибка при сохранении заявки: " + error.message);
+      setRowModesModel((prev) => ({
+        ...prev,
+        [id]: { mode: GridRowModes.Edit },
+      }));
     }
   };
 
   const handleDeleteClick = (id) => async () => {
+    if (!window.confirm("Вы уверены, что хотите удалить эту заявку?")) return;
+
     try {
       await deleteRequest(id);
-      setRows((prev) => prev.filter((row) => row.id !== id));
+      await loadData();
+      setErrorMessage("");
     } catch (error) {
-      console.error("Ошибка при удалении заявки:", error);
-      setErrorMessage("Ошибка при удалении заявки");
+      setErrorMessage("Ошибка при удалении заявки: " + error.message);
     }
   };
 
@@ -147,13 +197,14 @@ export default function AdminApplicationTable1({ onSelectApplication }) {
   };
 
   const processRowUpdate = (newRow) => {
-    if (!newRow.name.trim()) {
+    if (!newRow.name || !newRow.name.trim()) {
+      setErrorMessage("ФИО не может быть пустым");
+      // Возвращаем старую строку, отменяя изменения
       return rows.find((row) => row.id === newRow.id);
     }
+
     const updatedRow = { ...newRow, isNew: false };
-    setRows((prev) =>
-      prev.map((row) => (row.id === newRow.id ? updatedRow : row))
-    );
+    setRows((prev) => prev.map((row) => (row.id === newRow.id ? updatedRow : row)));
     return updatedRow;
   };
 
@@ -162,8 +213,17 @@ export default function AdminApplicationTable1({ onSelectApplication }) {
   };
 
   const columns = [
-    { field: "id", headerName: "ID", width: 50, editable: false },
-    { field: "name", headerName: "ФИО", width: 220, editable: true },
+    { field: "id", headerName: "ID", width: 70, editable: false },
+    {
+      field: "name",
+      headerName: "ФИО",
+      width: 220,
+      editable: true,
+      preProcessEditCellProps: (params) => {
+        const hasError = !params.props.value?.trim();
+        return { ...params.props, error: hasError };
+      },
+    },
     {
       field: "status",
       headerName: "Статус",
@@ -179,35 +239,32 @@ export default function AdminApplicationTable1({ onSelectApplication }) {
     },
     { field: "datespo", headerName: "Срок аренды", width: 180, editable: true },
     {
+      field: "summ",
+      headerName: "Сумма",
+      width: 120,
+      editable: true,
+      type: "number",
+    },
+    {
       field: "actions",
       type: "actions",
       headerName: "Действия",
       width: 250,
       getActions: ({ id }) => {
         const isInEditMode = rowModesModel[id]?.mode === GridRowModes.Edit;
-        const selectHandler = () => {
-          const app = rows.find((r) => r.id === id);
-          if (onSelectApplication && app?.raw) {
-            onSelectApplication({
-              id_zajav: app.raw.id_zajav,
-              datas: app.raw.datas,
-              user_name: app.raw.fio,
-            });
-          }
-        };
 
         return isInEditMode
           ? [
               <GridActionsCellItem
                 key="save"
                 icon={<SaveIcon />}
-                label="Save"
+                label="Сохранить"
                 onClick={handleSaveClick(id)}
               />,
               <GridActionsCellItem
                 key="cancel"
                 icon={<CancelIcon />}
-                label="Cancel"
+                label="Отмена"
                 onClick={handleCancelClick(id)}
               />,
             ]
@@ -215,19 +272,19 @@ export default function AdminApplicationTable1({ onSelectApplication }) {
               <GridActionsCellItem
                 key="edit"
                 icon={<EditIcon />}
-                label="Edit"
+                label="Редактировать"
                 onClick={handleEditClick(id)}
               />,
               <GridActionsCellItem
                 key="delete"
                 icon={<DeleteIcon />}
-                label="Delete"
+                label="Удалить"
                 onClick={handleDeleteClick(id)}
               />,
               <GridActionsCellItem
                 key="print"
                 icon={<PrintIcon />}
-                label="Print"
+                label="Печать"
                 onClick={handlePrintClick}
                 color="primary"
               />,
@@ -250,6 +307,7 @@ export default function AdminApplicationTable1({ onSelectApplication }) {
           processRowUpdate={processRowUpdate}
           slots={{ toolbar: EditToolbar }}
           slotProps={{ toolbar: { setRows, setRowModesModel } }}
+          experimentalFeatures={{ newEditingApi: true }}
         />
       </Box>
 

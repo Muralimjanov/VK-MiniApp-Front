@@ -11,7 +11,6 @@ import {
   DataGrid,
   GridActionsCellItem,
   GridRowEditStopReasons,
-  GridToolbarContainer
 } from '@mui/x-data-grid';
 import { ruRU } from '@mui/x-data-grid/locales';
 import { getAllUsers, updateUser, deleteUser, addUser } from '../api/admin';
@@ -23,26 +22,28 @@ export default function FullFeaturedCrudGrid() {
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    getAllUsers()
-      .then((data) => {
-        if (!Array.isArray(data)) throw new Error("Expected array");
-
-        const formatted = data.map((item, idx) => ({
-          id: item.id_vk ?? idx + 1,
-          name: item.fio,
-          login: item.id_vk,
-          passport: item.nam,
-          address: item.adr,
-          role: item.role ?? 'Арендатор',
-        }));
-
-        setRows(formatted);
-      })
-      .catch((err) => {
-        console.error('Ошибка при загрузке пользователей:', err.message);
-        setErrorMessage('Ошибка при загрузке пользователей');
-      });
+    loadUsers();
   }, []);
+
+  const loadUsers = async () => {
+    try {
+      const data = await getAllUsers();
+      const formatted = data.map((item, idx) => ({
+        id: item.id_user,
+        name: item.fio || '',
+        login: item.vk_id || '',
+        passport: item.nam || '',
+        address: item.adr || '',
+        role: item.id_rol === 2 ? 'Заведующий снаряжением' : 'Арендатор',
+        isNew: false,
+      }));
+      setRows(formatted);
+      setErrorMessage('');
+    } catch (err) {
+      console.error('Ошибка при загрузке пользователей:', err.message);
+      setErrorMessage('Ошибка при загрузке пользователей');
+    }
+  };
 
   const handleRowEditStop = (params, event) => {
     if (params.reason === GridRowEditStopReasons.rowFocusOut) {
@@ -54,53 +55,50 @@ export default function FullFeaturedCrudGrid() {
     setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.Edit } });
   };
 
-const handleSaveClick = (id) => async () => {
-  const rowToSave = rows.find((row) => row.id === id);
-  if (!rowToSave) return;
-
-  try {
-    await updateUser(id, {
-      fio: rowToSave.name,
-      id_vk: rowToSave.login,
-      nam: rowToSave.passport,
-      adr: rowToSave.address,
-      id_rol: rowToSave.role,
+  const handleCancelClick = (id) => () => {
+    setRowModesModel({
+      ...rowModesModel,
+      [id]: { mode: GridRowModes.View, ignoreModifications: true },
     });
-
-    setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } });
-  } catch (error) {
-    console.error('Ошибка при сохранении пользователя:', error);
-    setErrorMessage('Ошибка при сохранении пользователя');
-  }
-};
-
+  };
 
   const handleDeleteClick = (id) => async () => {
     try {
       await deleteUser(id);
-      setRows(rows.filter((row) => row.id !== id));
+      setRows((prevRows) => prevRows.filter((row) => row.id !== id));
+      setErrorMessage('');
     } catch (error) {
       console.error('Ошибка при удалении пользователя:', error);
       setErrorMessage('Ошибка при удалении пользователя');
     }
   };
 
-  const handleCancelClick = (id) => () => {
-    setRowModesModel({
-      ...rowModesModel,
-      [id]: { mode: GridRowModes.View, ignoreModifications: true },
-    });
+  const processRowUpdate = async (newRow, oldRow) => {
+    const roleMap = {
+      'Арендатор': 1,
+      'Заведующий снаряжением': 2,
+    };
 
-    const editedRow = rows.find((row) => row.id === id);
-    if (editedRow?.isNew) {
-      setRows(rows.filter((row) => row.id !== id));
+    const userData = {
+      fio: newRow.name,
+      vk_id: newRow.login,
+      nam: newRow.passport,
+      adr: newRow.address,
+      id_rol: roleMap[newRow.role] || 1,
+    };
+
+    try {
+      if (newRow.isNew) {
+        const response = await addUser(userData);
+        return { ...newRow, id: response.id_user, isNew: false };
+      } else {
+        await updateUser(newRow.id, userData);
+        return { ...newRow };
+      }
+    } catch (error) {
+      setErrorMessage(newRow.isNew ? 'Ошибка при добавлении пользователя' : 'Ошибка при сохранении пользователя');
+      throw error; 
     }
-  };
-
-  const processRowUpdate = (newRow) => {
-    const updatedRow = { ...newRow, isNew: false };
-    setRows(rows.map((row) => (row.id === newRow.id ? updatedRow : row)));
-    return updatedRow;
   };
 
   const handleRowModesModelChange = (newModel) => {
@@ -108,25 +106,24 @@ const handleSaveClick = (id) => async () => {
   };
 
   const handleAddClick = () => {
-  const id = Date.now();
-  setRows((prevRows) => [
-    ...prevRows,
-    {
-      id,
-      name: '',
-      login: '',
-      passport: '',
-      address: '',
-      role: 'Арендатор', 
-      isNew: true,
-    },
-  ]);
-  setRowModesModel((prevModel) => ({
-    ...prevModel,
-    [id]: { mode: GridRowModes.Edit, fieldToFocus: 'name' }, 
-  }));
-};
-
+    const id = Date.now();
+    setRows((prevRows) => [
+      ...prevRows,
+      {
+        id,
+        name: '',
+        login: '',
+        passport: '',
+        address: '',
+        role: 'Арендатор',
+        isNew: true,
+      },
+    ]);
+    setRowModesModel((prevModel) => ({
+      ...prevModel,
+      [id]: { mode: GridRowModes.Edit, fieldToFocus: 'name' },
+    }));
+  };
 
   const columns = [
     { field: 'id', headerName: 'ID', width: 100, editable: false },
@@ -166,14 +163,14 @@ const handleSaveClick = (id) => async () => {
             <GridActionsCellItem
               key="save"
               icon={<SaveIcon />}
-              label="Save"
-              onClick={handleSaveClick(id)}
+              label="Сохранить"
+              onClick={() => setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } })}
               sx={{ color: 'primary.main' }}
             />,
             <GridActionsCellItem
               key="cancel"
               icon={<CancelIcon />}
-              label="Cancel"
+              label="Отмена"
               onClick={handleCancelClick(id)}
               color="inherit"
             />,
@@ -184,14 +181,14 @@ const handleSaveClick = (id) => async () => {
           <GridActionsCellItem
             key="edit"
             icon={<EditIcon />}
-            label="Edit"
+            label="Редактировать"
             onClick={handleEditClick(id)}
             color="inherit"
           />,
           <GridActionsCellItem
             key="delete"
             icon={<DeleteIcon />}
-            label="Delete"
+            label="Удалить"
             onClick={handleDeleteClick(id)}
             color="inherit"
           />,
@@ -201,7 +198,7 @@ const handleSaveClick = (id) => async () => {
   ];
 
   return (
-    <Box sx={{ height: 500, width: '100%' }}>
+    <Box sx={{ height: 600, width: '100%' }}>
       <DataGrid
         localeText={ruRU.components.MuiDataGrid.defaultProps.localeText}
         rows={rows}
@@ -209,11 +206,17 @@ const handleSaveClick = (id) => async () => {
         editMode="row"
         rowModesModel={rowModesModel}
         onRowModesModelChange={handleRowModesModelChange}
-        onRowEditStop={handleRowEditStop}
         processRowUpdate={processRowUpdate}
+        onRowEditStop={handleRowEditStop}
+        experimentalFeatures={{ newEditingApi: true }} 
+        pagination
+        pageSize={10}
+        rowsPerPageOptions={[5, 10, 25]}
       />
       {errorMessage && (
-        <div style={{ color: 'red', marginTop: 10 }}>{errorMessage}</div>
+        <Box sx={{ color: 'red', marginTop: 2 }}>
+          {errorMessage}
+        </Box>
       )}
     </Box>
   );

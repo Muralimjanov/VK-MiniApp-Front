@@ -7,6 +7,7 @@ import CartIcon from '@mui/icons-material/AddShoppingCart';
 import DeleteIcon from '@mui/icons-material/DeleteOutlined';
 import SaveIcon from '@mui/icons-material/Save';
 import CancelIcon from '@mui/icons-material/Close';
+import CircularProgress from '@mui/material/CircularProgress';
 import {
     GridRowModes,
     DataGrid,
@@ -22,18 +23,12 @@ import {
     randomId,
     randomArrayItem,
 } from '@mui/x-data-grid-generator';
+import { getAllEquipments } from '../api/Equipments';
 
 const roles = ['Market', 'Finance', 'Development'];
 const randomRole = () => {
     return randomArrayItem(roles);
 };
-
-const initialRows = [
-    { id: 1, tnaim: 'Горное', vnaim: 'Шнур 16-прядный 6мм', kolich: 14,zenaz:100, zenapr:10, sost: null },
-    { id: 2, tnaim: 'Горное', vnaim: 'Карабин "Ринг"(сталь)', kolich: 3,zenaz:200, zenapr:20, sost: null },
-    { id: 3, tnaim: 'Водное', vnaim: 'Заглушка', kolich: 6,zenaz:300, zenapr:30, sost: 'Заглушка' },
-    { id: 4, tnaim: 'Водное', vnaim: 'Байдарка "Таймень"', kolich: 7,zenaz:4000, zenapr:400, sost: null },
-];
 
 function EditToolbar(props) {
     const { setRows, setRowModesModel } = props;
@@ -42,11 +37,11 @@ function EditToolbar(props) {
         const id = randomId();
         setRows((oldRows) => [
             ...oldRows,
-            { id, name: '', age: '', role: '', isNew: true },
+            { id, tnaim: '', vnaim: '', kolich: 0, zenaz: 0, zenapr: 0, sost: '', isNew: true },
         ]);
         setRowModesModel((oldModel) => ({
             ...oldModel,
-            [id]: { mode: GridRowModes.Edit, fieldToFocus: 'name' },
+            [id]: { mode: GridRowModes.Edit, fieldToFocus: 'tnaim' },
         }));
     };
 
@@ -62,8 +57,39 @@ function EditToolbar(props) {
 }
 
 export default function FullFeaturedCrudGrid() {
-    const [rows, setRows] = React.useState(initialRows);
+    const [rows, setRows] = React.useState([]);
     const [rowModesModel, setRowModesModel] = React.useState({});
+    const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState(null);
+
+    React.useEffect(() => {
+        const loadEquipments = async () => {
+            try {
+                setLoading(true);
+                const equipments = await getAllEquipments();
+                const transformedRows = equipments.map(item => ({
+                    id: item.id_vid, 
+                    tnaim: item.tnaim || '', 
+                    vnaim: item.vnaim || '',
+                    kolich: item.kolich ? Number(item.kolich) : 0, 
+                    zenaz: item.zenaz ? Number(item.zenaz) : 0, 
+                    zenapr: item.zenapr ? Number(item.zenapr) : 0, 
+                    sost: item.sost || '',
+                }));
+                console.log('Transformed rows:', transformedRows);
+                setRows(transformedRows);
+                console.log('Rows set in state:', transformedRows);
+                setError(null);
+            } catch (err) {
+                console.error('Ошибка загрузки оборудования:', err);
+                setError('Не удалось загрузить данные');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadEquipments();
+    }, []);
 
     const handleRowEditStop = (params, event) => {
         if (params.reason === GridRowEditStopReasons.rowFocusOut) {
@@ -106,7 +132,7 @@ export default function FullFeaturedCrudGrid() {
     };
 
     const columns = [
-        { field: 'id', headerName: '№', width: 10, editable: false,hide: true },
+        { field: 'id', headerName: '№', width: 10, editable: false, hide: true },
         {
             field: 'tnaim',
             headerName: 'Категория',
@@ -149,9 +175,41 @@ export default function FullFeaturedCrudGrid() {
             headerName: 'Состав',
             width: 250,
             editable: true,
-            
         },
     ];
+
+    if (loading) {
+        return (
+            <Box
+                sx={{
+                    height: 500,
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                }}
+            >
+                <CircularProgress />
+            </Box>
+        );
+    }
+
+    if (error) {
+        return (
+            <Box
+                sx={{
+                    height: 500,
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'error.main',
+                }}
+            >
+                {error}
+            </Box>
+        );
+    }
 
     return (
         <Box
@@ -182,8 +240,6 @@ export default function FullFeaturedCrudGrid() {
                 slotProps={{
                     toolbar: { setRows, setRowModesModel },
                 }}
-                
-
             />
         </Box>
     );
