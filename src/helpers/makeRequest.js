@@ -10,7 +10,7 @@ export const makeRequest = async (method, url, params) => {
 
     console.log("📦 makeRequest response:", response);
 
-    return response.data;
+    return response;
   } catch (e) {
     console.error("❌ Ошибка в makeRequest:", e);
     return Promise.reject(e);

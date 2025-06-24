@@ -8,9 +8,8 @@ export const loginWithVK = async (vkUserData) => {
 
     let user = response.data.user;
     if (user && user.id_rol) {
-      // Преобразуем id_rol в строковую роль
       user.role = user.id_rol === 2 ? 'Заведующий снаряжением' : 'Арендатор';
-      delete user.id_rol; // Удаляем id_rol, чтобы избежать конфликтов
+      delete user.id_rol; 
     }
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);

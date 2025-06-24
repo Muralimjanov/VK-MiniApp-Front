@@ -70,10 +70,10 @@ function createData(id, category, name, quantity, borrowPrice, price, ingredient
   };
 }
 
-const rows = [
-  createData(1, 'Горное', 'Шнур 16-пряный 6мм', 2, 6.00, 0.00, ''),
-  createData(2, 'Общее', 'Палатка "Байкал-4"', 2, 4700, 100.00, 'Чехол палатки, чехол колышков, чехол дуг, дуга длинная 2шт...'),
-];
+// const rows = [
+//   createData(1, 'Горное', 'Шнур 16-пряный 6мм', 2, 6.00, 0.00, ''),
+//   createData(2, 'Общее', 'Палатка "Байкал-5"', 2, 4700, 100.00, 'Чехол палатки, чехол колышков, чехол дуг, дуга длинная 2шт...'),
+// ];
 
 function getRandomInt(min, max) {
   min = Math.ceil(min);

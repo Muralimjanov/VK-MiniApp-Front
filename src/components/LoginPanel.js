@@ -1,35 +1,3 @@
-// import React from 'react';
-// import { useAuth } from '../context/authContext';
-// import { Button, Panel, PanelHeader } from '@vkontakte/vkui';
-
-// const LoginPanel = ({ id }) => {
-//     const { login } = useAuth();
-
-//     const handleLogin = async () => {
-//         try {
-//             await login({
-//                 vk_user_id: '123456789',
-//                 sign: 'your_signature',
-//                 is_group_creator: true,
-//                 bypass_signature: true,
-//             });
-//         } catch (e) {
-//             alert('Ошибка входа: ' + (e?.response?.data?.message || e.message));
-//         }
-//     };
-
-//     return (
-//         <Panel id={id}>
-//             <PanelHeader>Авторизация</PanelHeader>
-//             <Button size="l" stretched onClick={handleLogin}>
-//                 Войти через VK
-//             </Button>
-//         </Panel>
-//     );
-// };
-
-// export default LoginPanel;
-
 import React, { useState } from 'react';
 import { useAuth } from '../context/authContext';
 import { Button, Panel, PanelHeader, Input } from '@vkontakte/vkui';

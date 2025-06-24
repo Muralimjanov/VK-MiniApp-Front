@@ -1,9 +1,10 @@
-import { Panel, PanelHeader, Header, Button, Group, Cell, Div, Avatar, SplitCol, SplitLayout, PanelHeaderBack } from '@vkontakte/vkui';
+import { Panel, PanelHeader, Header, Button, Group, Cell, Div, Avatar, SplitCol, SplitLayout, PanelHeaderBack, Placeholder } from '@vkontakte/vkui';
 import { useRouteNavigator } from '@vkontakte/vk-mini-apps-router';
 import PropTypes from 'prop-types';
 import './../../assets/css/main.css';
 import { getAllEquipments } from './../../api/Equipments.js';
 import { createContext, useContext, useEffect, useState, useRef } from "react";
+import { AuthContext } from './../../context/authContext';
 import EditEquipmentForm from "./../../components/EditEquipmentForm.js";
 import EditApplicationForm from "./../../components/EditApplicationForm.js";
 import Table from "./../../components/AdminEquipmentTable.js";
@@ -11,7 +12,6 @@ import TableApplication from "./../../components/UserApplicationTable.js";
 import Calendar from 'react-calendar';
 import { getAdminEquipments, updateEquipment, deleteEquipment } from '../../api/admin.js';
 import * as React from 'react';
-
 
 const headCells = [
   {
@@ -71,12 +71,6 @@ function createData(id, category, name, quantity, borrowPrice, price, ingredient
   };
 }
 
-const rows = [
-  createData(1, 'Горное', 'Шнур 16-пряный 6мм', 1, 100.00, 10.00, ''),
-  createData(2, 'Горное', 'Карабин "Ринг"(сталь)', 3, 200.00, 20.00, ''),
-  createData(3, 'Водное', 'Заглушка', 6, 300.00, 30.00, ''),
-];
-
 function getRandomInt(min, max) {
   min = Math.ceil(min);
   max = Math.floor(max);
@@ -84,9 +78,11 @@ function getRandomInt(min, max) {
 }
 
 export const AdminEquipments = ({ id, fetchedUser }) => {
-  // return (
-  //     <label>testsdf</label>
-  // );
+  const { role } = useContext(AuthContext);
+  const isAdmin = role === '2' || role === 2;
+  
+  console.log('AdminEquipments - Role:', role, 'IsAdmin:', isAdmin);
+
   const [isLoading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const dataContext = useContext(createContext(null));
@@ -96,6 +92,35 @@ export const AdminEquipments = ({ id, fetchedUser }) => {
   const [valueCalendar, onChangeCalendar] = useState([]);
   const calendarRef = useRef(null);
 
+  if (!isAdmin) {
+    return (
+      <Panel id={id}>
+        <PanelHeader before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}>
+          Администрирование снаряжения
+        </PanelHeader>
+        <Group>
+          <Placeholder
+            icon={<div style={{ fontSize: '48px' }}>🔒</div>}
+            header="Доступ запрещен"
+            action={
+              <Button 
+                size="m" 
+                onClick={() => routeNavigator.push('/')}
+              >
+                На главную
+              </Button>
+            }
+          >
+            У вас нет прав для просмотра этой страницы.
+            <br />
+            Текущая роль: {role}
+            <br />
+            Требуется роль администратора.
+          </Placeholder>
+        </Group>
+      </Panel>
+    );
+  }
 
   const loadEquipments = async () => {
     try {
@@ -117,45 +142,19 @@ export const AdminEquipments = ({ id, fetchedUser }) => {
     }
   };
 
-
   useEffect(() => {
     if (equipments) {
       setLoading(false);
       return;
     }
-    // if (!profile || orderInProgress === undefined) {
-    //   return;
-    // }
     loadEquipments();
   }, [equipments]);
-
-  // useEffect(() => {
-  //   if (equipments) {
-  //     setLoading(false);
-  //     return;
-  //   }
-  //   if (calendarRef.current) {
-  //     // Access the DOM element using myElementRef.current
-  //     const element = calendarRef.current;
-  //     console.log(element); // Output: <div ref=.../>
-  //     // You can now use standard DOM methods like querySelector on this element
-  //     const childElement = element.querySelector('[aria-label="June 10, 2025"]');
-  //     if (childElement) {
-  //       console.log(childElement); // Output: <div class="my-child">
-  //       childElement.css.background = 'red !important';
-  //       childElement.style.backgroundColor = 'red !important';
-  //     }
-  //   }
-  // }, [equipments]);
 
   return (
     <Panel id={id}>
       <PanelHeader before={<PanelHeaderBack onClick={() => routeNavigator.back()} />}>
-        Администрирования снаряжения
+        Администрирование снаряжения
       </PanelHeader>
-      {/* <Group>
-        <Table/>
-      </Group> */}
       <Group>
         <Table equipments={equipments} onUpdate={updateEquipment} onDelete={deleteEquipment} />
       </Group>

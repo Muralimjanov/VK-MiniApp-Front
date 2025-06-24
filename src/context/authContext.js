@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
         setToken(token);
         const roleStr = String(user.id_rol);
         setRole(roleStr);
-        console.log('Установленная роль в saveAuthData:', roleStr); // Лог
+        console.log('Установленная роль в saveAuthData:', roleStr, typeof roleStr);
         setUser(user);
         setIsAuthenticated(true);
     
@@ -26,21 +26,31 @@ export const AuthProvider = ({ children }) => {
     };
     
     useEffect(() => {
-        const storedToken = localStorage.getItem('token');
-        const storedRole = localStorage.getItem('role');
-        const storedVkId = localStorage.getItem('vk_user_id');
-    
-        console.log('Загруженная роль из localStorage:', storedRole); // Лог
-    
-        if (storedToken && storedRole && storedVkId) {
-            setToken(storedToken);
-            setRole(storedRole);
-            setIsAuthenticated(true);
-            instance.defaults.headers.Authorization = `Bearer ${storedToken}`;
-            instance.defaults.headers['x-vk-user-id'] = storedVkId;
-        }
-    
-        setLoading(false);
+        const initAuth = async () => {
+            const storedToken = localStorage.getItem('token');
+            const storedRole = localStorage.getItem('role');
+            const storedVkId = localStorage.getItem('vk_user_id');
+        
+            console.log('Загруженная роль из localStorage:', storedRole, typeof storedRole);
+        
+            if (storedToken && storedRole && storedVkId) {
+                const roleStr = String(storedRole);
+                setToken(storedToken);
+                setRole(roleStr);
+                setIsAuthenticated(true);
+                
+                console.log('Роль установлена из localStorage:', roleStr);
+                
+                instance.defaults.headers.Authorization = `Bearer ${storedToken}`;
+                instance.defaults.headers['x-vk-user-id'] = storedVkId;
+            } else {
+                console.log('Данные авторизации не найдены в localStorage');
+            }
+        
+            setLoading(false);
+        };
+
+        initAuth();
     }, []);
 
     const login = async (vkPayload) => {
@@ -49,44 +59,33 @@ export const AuthProvider = ({ children }) => {
             const response = await instance.post('/api/auth/vk-login', vkPayload);
             const { token, user } = response;
     
+            console.log('Ответ сервера:', response);
+            console.log('Пользователь:', user);
+    
             if (!user || !user.id_rol) {
                 throw new Error('Роль пользователя не определена');
             }
     
             saveAuthData(token, user);
         } catch (error) {
+            console.error('Ошибка авторизации:', error);
             logout();
             throw error;
         } finally {
             setLoading(false);
         }
     };
-    
-
-    useEffect(() => {
-        const storedToken = localStorage.getItem('token');
-        const storedRole = localStorage.getItem('role');
-        const storedVkId = localStorage.getItem('vk_user_id');
-
-        if (storedToken && storedRole && storedVkId) {
-            setToken(storedToken);
-            setRole(storedRole);
-            setIsAuthenticated(true);
-            instance.defaults.headers.Authorization = `Bearer ${storedToken}`;
-            instance.defaults.headers['x-vk-user-id'] = storedVkId;
-        }
-
-        setLoading(false);
-    }, []);
 
     const logout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('role');
+        localStorage.removeItem('vk_user_id');
         setUser(null);
         setRole(null);
         setToken(null);
         setIsAuthenticated(false);
         delete instance.defaults.headers.Authorization;
+        delete instance.defaults.headers['x-vk-user-id'];
     };
 
     return (

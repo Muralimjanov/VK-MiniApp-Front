@@ -1,28 +1,8 @@
-// import axios from 'axios';
-
-// export const instance = axios.create({
-//   baseURL: import.meta.env.VITE_BACKEND_DOMAIN_URL,
-//   headers: {
-//     "Content-Type": "application/json",
-//     Authorization: `VK ${btoa(window.location.search)}`
-//   }
-// })
-
-// instance.interceptors.response.use(
-//     response => {
-//         console.log(response.data);
-//       return response.data
-//     },
-//     error => {
-//       return Promise.reject(error)
-//     }
-// )
-
 import axios from 'axios';
 
 export const instance = axios.create({
-  // baseURL: import.meta.env.VITE_BACKEND_DOMAIN_URL || 'http://equpment-rent-club.ru:5000/',
-  baseURL: import.meta.env.VITE_BACKEND_DOMAIN_URL || 'http://localhost:5001/',
+  baseURL: import.meta.env.VITE_BACKEND_DOMAIN_URL || 'http://equpment-rent-club.ru:5000/',
+  // baseURL: import.meta.env.VITE_BACKEND_DOMAIN_URL || 'http://localhost:5001/',
   headers: {
     "Content-Type": "application/json",
   }
