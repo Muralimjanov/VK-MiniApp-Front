@@ -38,7 +38,7 @@ const LoginPanel = ({ id }) => {
     const { login } = useAuth();
 
     const [vkUserId, setVkUserId] = useState('');
-    const [sign, setSign] = useState('your_signature');
+    const [sign, setSign] = useState('rd8b7_OQokTrks00aXOl97N6Tw18_1Qw0zNrVIWx2jc');
     const [isGroupCreator, setIsGroupCreator] = useState(false);
     const [loading, setLoading] = useState(false);
 

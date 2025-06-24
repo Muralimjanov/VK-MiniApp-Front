@@ -21,7 +21,8 @@
 import axios from 'axios';
 
 export const instance = axios.create({
-  baseURL: import.meta.env.VITE_BACKEND_DOMAIN_URL || 'http://equpment-rent-club.ru:5000/',
+  // baseURL: import.meta.env.VITE_BACKEND_DOMAIN_URL || 'http://equpment-rent-club.ru:5000/',
+  baseURL: import.meta.env.VITE_BACKEND_DOMAIN_URL || 'http://localhost:5001/',
   headers: {
     "Content-Type": "application/json",
   }
