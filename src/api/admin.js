@@ -14,6 +14,23 @@ export const deleteEquipment = async (id) => {
   return await instance.delete(`/api/equipment/${id}`);
 };
 
+// пример api/admin.js
+export async function createEquipment(data) {
+  const res = await fetch("/api/equipment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || "Ошибка создания оборудования");
+  }
+
+  // Важно: вернуть JSON с объектом нового оборудования, включая id_vid
+  return res.json();
+}
+
 // create
 
 // Пользователи
