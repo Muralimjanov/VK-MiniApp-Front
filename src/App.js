@@ -77,7 +77,7 @@
 // };
 
 // App.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   View,
   SplitLayout,
@@ -86,7 +86,7 @@ import {
   FixedLayout,
 } from "@vkontakte/vkui";
 import { useActiveVkuiLocation } from "@vkontakte/vk-mini-apps-router";
-import {DataContext} from "./context/dataContext"
+import { DataContext } from "./context/dataContext";
 
 import {
   Persik,
@@ -98,56 +98,28 @@ import {
   AdminApplications,
 } from "./panels";
 
+import { AuthProvider, AuthContext } from "./context/authContext";
+import LoginPanel from "./components/LoginPanel";
 import MainButtons from "./components/MainButtons.js";
 import { Box } from "@mui/joy";
-import { instance } from "./api/axios.js";
 import { DEFAULT_VIEW, DEFAULT_VIEW_PANELS } from './routes.js';
+import { useVKAuth } from './hooks/useVKAuth';
 
-export const App = () => {
+const AppContent = () => {
+  useVKAuth();
+  const { isAuthenticated, loading, role } = useContext(AuthContext);
   const { panel: activePanel = DEFAULT_VIEW_PANELS.HOME } = useActiveVkuiLocation();
-  const [fetchedUser, setUser] = useState(null);
   const [popout, setPopout] = useState(<ScreenSpinner />);
-  const [role, setRole] = useState(null);
-  const [data, setData] = useState({ equipments: null }); // 👈 контекст состояния
+  const [data, setData] = useState({ equipments: null });
 
   useEffect(() => {
-    const authorize = async () => {
+    if (!loading) {
+      setPopout(null);
+    }
+  }, [loading]);
 
-     
-
-      try {
-        const vkLoginPayload = {
-          vk_user_id: "123456723",
-          sign: "rd8b7_OQokTrks00aXOl97N6Tw18_1Qw0zNrVIWx2jc",
-          is_group_creator: true,
-          bypass_signature: true,
-        };
-
-        const response = await instance.post("/api/auth/vk-login", vkLoginPayload);
-        const { token, user } = response;
-
-        if (!user?.id_rol) throw new Error("Роль не определена");
-
-        localStorage.setItem("token", token);
-        localStorage.setItem("role", user.id_rol);
-        setRole(String(user.id_rol));
-      } catch (error) {
-        console.error("Ошибка авторизации:", error.message || error);
-        alert(`Ошибка авторизации: ${error.message || error}`);
-      } finally {
-        setPopout(null);
-      }
-    };
-
-    authorize();
-  }, []);
-
-  if (!role) return <ScreenSpinner />;
-
-console.log('activePanel:', activePanel);
-
-console.log("🪪 Токен:", localStorage.getItem('token'));
-console.log("axios ответ (user):", data.user);
+  if (loading) return <ScreenSpinner />;
+  if (!isAuthenticated) return <LoginPanel id="login" />;
 
   return (
     <DataContext.Provider value={{ data, setData }}>
@@ -161,20 +133,29 @@ console.log("axios ответ (user):", data.user);
 
           <View activePanel={activePanel} nav={DEFAULT_VIEW} id={DEFAULT_VIEW}>
             <Home id={DEFAULT_VIEW_PANELS.HOME} />
-           
-                <UserEquipments id={DEFAULT_VIEW_PANELS.USER_EQUIPMENTS} fetchedUser={fetchedUser}/>
-                <UserEquipments2 id={DEFAULT_VIEW_PANELS.USER_EQUIPMENTS2} />
-             
-          
+            <UserEquipments id={DEFAULT_VIEW_PANELS.USER_EQUIPMENTS} />
+            <UserEquipments2 id={DEFAULT_VIEW_PANELS.USER_EQUIPMENTS2} />
+
+            {role === '2' && (
+              <>
                 <AdminEquipments id={DEFAULT_VIEW_PANELS.ADMIN_EQUIPMENTS} />
                 <AdminUsers id={DEFAULT_VIEW_PANELS.ADMIN_USERS} />
                 <AdminApplications id={DEFAULT_VIEW_PANELS.ADMIN_APPLICATIONS} />
-              
-          
+              </>
+            )}
+
             <Persik id={DEFAULT_VIEW_PANELS.PERSIK} />
           </View>
         </SplitCol>
       </SplitLayout>
     </DataContext.Provider>
+  );
+};
+
+export const App = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
