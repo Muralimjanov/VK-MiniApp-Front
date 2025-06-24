@@ -15,11 +15,7 @@ import {
     ToolbarButton,
 } from '@mui/x-data-grid';
 import { ruRU } from '@mui/x-data-grid/locales';
-const initialRows = [
-    { id: 1, vnaim: 'Шнур 16-прядный 6мм', kolich: 14,zenaz:100, zenapr:10,sost:null, },
-    { id: 2, vnaim: 'Карабин "Ринг"(сталь)', kolich: 3,zenaz:200, zenapr:20,sost:null, },
-    { id: 3, vnaim: 'Заглушка', kolich: 6, zenaz:300, zenapr:30,sost: 'Заглушка', },
-];
+import { randomId } from '@mui/x-data-grid-generator';
 
 function EditToolbar(props) {
     const { setRows, setRowModesModel } = props;
@@ -28,17 +24,17 @@ function EditToolbar(props) {
         const id = randomId();
         setRows((oldRows) => [
             ...oldRows,
-            { id, name: '', age: '', role: '', isNew: true },
+            { id, vnaim: '', kolich: 1, zenaz: 0, zenapr: 0, sost: '', isNew: true },
         ]);
         setRowModesModel((oldModel) => ({
             ...oldModel,
-            [id]: { mode: GridRowModes.Edit, fieldToFocus: 'name' },
+            [id]: { mode: GridRowModes.Edit, fieldToFocus: 'vnaim' },
         }));
     };
 
     return (
         <Toolbar>
-            <Tooltip title="Add record">
+            <Tooltip title="Добавить запись">
                 <ToolbarButton onClick={handleClick}>
                     <AddIcon fontSize="small" />
                 </ToolbarButton>
@@ -47,9 +43,17 @@ function EditToolbar(props) {
     );
 }
 
-export default function FullFeaturedCrudGrid() {
-    const [rows, setRows] = React.useState(initialRows);
+export default function UserApplicationTable({ 
+    selectedItems = [], 
+    onUpdateItem, 
+    onDeleteItem 
+}) {
+    const [rows, setRows] = React.useState([]);
     const [rowModesModel, setRowModesModel] = React.useState({});
+
+    React.useEffect(() => {
+        setRows(selectedItems);
+    }, [selectedItems]);
 
     const handleRowEditStop = (params, event) => {
         if (params.reason === GridRowEditStopReasons.rowFocusOut) {
@@ -66,7 +70,11 @@ export default function FullFeaturedCrudGrid() {
     };
 
     const handleDeleteClick = (id) => () => {
-        setRows(rows.filter((row) => row.id !== id));
+        if (onDeleteItem) {
+            onDeleteItem(id);
+        } else {
+            setRows(rows.filter((row) => row.id !== id));
+        }
     };
 
     const handleCancelClick = (id) => () => {
@@ -76,19 +84,33 @@ export default function FullFeaturedCrudGrid() {
         });
 
         const editedRow = rows.find((row) => row.id === id);
-        if (editedRow.isNew) {
-            setRows(rows.filter((row) => row.id !== id));
+        if (editedRow && editedRow.isNew) {
+            if (onDeleteItem) {
+                onDeleteItem(id);
+            } else {
+                setRows(rows.filter((row) => row.id !== id));
+            }
         }
     };
 
     const processRowUpdate = (newRow) => {
         const updatedRow = { ...newRow, isNew: false };
-        setRows(rows.map((row) => (row.id === newRow.id ? updatedRow : row)));
+        
+        if (onUpdateItem) {
+            onUpdateItem(updatedRow);
+        } else {
+            setRows(rows.map((row) => (row.id === newRow.id ? updatedRow : row)));
+        }
+        
         return updatedRow;
     };
 
     const handleRowModesModelChange = (newRowModesModel) => {
         setRowModesModel(newRowModesModel);
+    };
+
+    const handleAddRow = (newRows) => {
+        setRows(newRows);
     };
 
     const columns = [
@@ -124,7 +146,6 @@ export default function FullFeaturedCrudGrid() {
             headerName: 'Состав',
             width: 250,
             editable: true,
-            type: 'number',
         },
         {
             field: 'actions',
@@ -138,18 +159,18 @@ export default function FullFeaturedCrudGrid() {
                 if (isInEditMode) {
                     return [
                         <GridActionsCellItem
+                        key="save"
                             icon={<SaveIcon />}
-                            label="Save"
-                            material={{
-                                sx: {
-                                    color: 'primary.main',
-                                },
+                            label="Сохранить"
+                            sx={{
+                                color: 'primary.main',
                             }}
                             onClick={handleSaveClick(id)}
                         />,
                         <GridActionsCellItem
+                        key="canel"
                             icon={<CancelIcon />}
-                            label="Cancel"
+                            label="Отменить"
                             className="textPrimary"
                             onClick={handleCancelClick(id)}
                             color="inherit"
@@ -159,15 +180,17 @@ export default function FullFeaturedCrudGrid() {
 
                 return [
                     <GridActionsCellItem
+                    key="edin"
                         icon={<EditIcon />}
-                        label="Edit"
+                        label="Редактировать"
                         className="textPrimary"
                         onClick={handleEditClick(id)}
                         color="inherit"
                     />,
                     <GridActionsCellItem
+                    key="delete"
                         icon={<DeleteIcon />}
-                        label="Delete"
+                        label="Удалить"
                         onClick={handleDeleteClick(id)}
                         color="inherit"
                     />,
@@ -195,15 +218,13 @@ export default function FullFeaturedCrudGrid() {
                 columns={columns}
                 editMode="row"
                 rowModesModel={rowModesModel}
-                onRowModesModelChange={handleRowModesModelChange}
+                onRowModesModel={handleRowModesModelChange}
                 onRowEditStop={handleRowEditStop}
                 processRowUpdate={processRowUpdate}
-                //slots={{ toolbar: EditToolbar }}
-                //slotProps={{
-                //    toolbar: { setRows, setRowModesModel },
-                //}}
-                //showToolbar
-
+                slots={{ toolbar: EditToolbar }}
+                slotProps={{
+                    toolbar: { setRows: handleAddRow, setRowModesModel },
+                }}
             />
         </Box>
     );

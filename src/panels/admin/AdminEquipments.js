@@ -71,11 +71,11 @@ function createData(id, category, name, quantity, borrowPrice, price, ingredient
   };
 }
 
-const rows = [
-  createData(1, 'Горное', 'Шнур 16-пряный 6мм', 1, 100.00, 10.00, ''),
-  createData(2, 'Горное', 'Карабин "Ринг"(сталь)', 3, 200.00, 20.00, ''),
-  createData(3, 'Водное', 'Заглушка', 6, 300.00, 30.00, ''),
-];
+// const rows = [
+//   createData(1, 'Горное', 'Шнур 16-пряный 6мм', 1, 100.00, 10.00, ''),
+//   createData(2, 'Горное', 'Карабин "Ринг"(сталь)', 3, 200.00, 20.00, ''),
+//   createData(3, 'Водное', 'Заглушка', 6, 300.00, 30.00, ''),
+// ];
 
 function getRandomInt(min, max) {
   min = Math.ceil(min);

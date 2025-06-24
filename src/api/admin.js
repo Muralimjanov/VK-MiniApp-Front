@@ -6,6 +6,14 @@ export const getAdminEquipments = async () => {
   return await instance.get('/api/equipment/with-availability');
 };
 
+// Исправленная функция создания оборудования - используем instance вместо fetch
+export const createEquipment = async (data) => {
+  console.log("🚀 Отправляем данные на создание:", data);
+  const result = await instance.post('/api/equipment', data);
+  console.log("🧪 Ответ от сервера (POST /equipment):", result);
+  return result;
+};
+
 export const updateEquipment = async (id, data) => {
   return await instance.patch(`/api/equipment/${id}`, data);
 };
@@ -14,33 +22,20 @@ export const deleteEquipment = async (id) => {
   return await instance.delete(`/api/equipment/${id}`);
 };
 
-// пример api/admin.js
-export async function createEquipment(data) {
-  const res = await fetch("/api/equipment", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.message || "Ошибка создания оборудования");
-  }
-
-  // Важно: вернуть JSON с объектом нового оборудования, включая id_vid
-  return res.json();
-}
-
-// create
-
 // Пользователи
 export const getAllUsers = async () => {
-    const data = await makeRequest('get', '/api/admin/users');
-    if (!Array.isArray(data)) {
-        console.warn('Ответ сервера не является массивом пользователей:', data);
-        return [];
-    }
-    return data;
+  const data = await makeRequest('get', '/api/admin/users');
+  if (!Array.isArray(data)) {
+    console.warn('Ответ сервера не является массивом пользователей:', data);
+    return [];
+  }
+  return data;
+};
+
+export const addUser = async (userData) => {
+  
+  return await instance.post(`/api/admin/users/`, userData);
+  
 };
 
 export const updateUser = async (id, data) => {
@@ -52,9 +47,6 @@ export const deleteUser = async (id) => {
 };
 
 // Заявки
-// export const getAllRequests = async () => {
-//   return await instance.get('/api/admin/requests');
-// };
 export const getAllRequests = async () => {
   const data = await makeRequest('get', '/api/admin/requests');
   if (!Array.isArray(data)) {
@@ -64,9 +56,10 @@ export const getAllRequests = async () => {
   return data;
 };
 
-
-
-
+// export const getRequests = async () => {
+//   const response = await instance.get('/admin/requests');
+//   return response.data;
+// };
 
 export const getRequestItems = async (id) => {
   return await instance.get(`/api/admin/requests/${id}/items`);
@@ -83,10 +76,12 @@ export const updateRequest = async (id, data) => {
   return res;
 };
 
-// Удаление заявки
 export const deleteRequest = async (id) => {
   console.log(`API: deleteRequest id=${id}`);
   const res = await makeRequest('delete', `/api/admin/requests/${id}`);
   console.log('API: deleteRequest response:', res);
   return res;
 };
+
+
+

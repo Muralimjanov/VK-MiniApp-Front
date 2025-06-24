@@ -108,7 +108,7 @@ export const App = () => {
   const [fetchedUser, setUser] = useState(null);
   const [popout, setPopout] = useState(<ScreenSpinner />);
   const [role, setRole] = useState(null);
-  const [data, setData] = useState({ equipments: null }); // 👈 контекст состояния
+  const [data, setData] = useState({ equipments: null }); 
 
   useEffect(() => {
     const authorize = async () => {

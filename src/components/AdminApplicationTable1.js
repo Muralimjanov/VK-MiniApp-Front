@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Tooltip from "@mui/material/Tooltip";
 import AddIcon from "@mui/icons-material/Add";
@@ -7,13 +7,9 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Close";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import PrintIcon from "@mui/icons-material/Print";
 import Modal from "@mui/material/Modal";
-import Typography from "@mui/material/Typography";
-import AdminEquipmentTable from "./AdminEquipmentTable";
-import ActTransmission from "./ActTransmission";
-import ActReception from "./ActReception";
+import Snackbar from "@mui/material/Snackbar";
 import { ruRU } from "@mui/x-data-grid/locales";
 import {
   GridRowModes,
@@ -22,9 +18,6 @@ import {
   GridRowEditStopReasons,
   GridToolbarContainer,
 } from "@mui/x-data-grid";
-import { Snackbar } from "@mui/material";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { getAllRequests, updateRequest, deleteRequest } from "../api/admin";
 
 function EditToolbar({ setRows, setRowModesModel }) {
@@ -49,11 +42,7 @@ function EditToolbar({ setRows, setRowModesModel }) {
   return (
     <GridToolbarContainer>
       <Tooltip title="Добавить заявку">
-        <Box
-          component="span"
-          sx={{ cursor: "pointer", p: 1 }}
-          onClick={handleClick}
-        >
+        <Box component="span" sx={{ cursor: "pointer", p: 1 }} onClick={handleClick}>
           <AddIcon fontSize="small" />
         </Box>
       </Tooltip>
@@ -61,34 +50,24 @@ function EditToolbar({ setRows, setRowModesModel }) {
   );
 }
 
-export default function AdminApplicationTable1() {
+export default function AdminApplicationTable1({ onSelectApplication }) {
   const [rows, setRows] = useState([]);
   const [rowModesModel, setRowModesModel] = useState({});
   const [openModal, setOpenModal] = useState(false);
-  const [selectedRowId, setSelectedRowId] = useState(null);
-  const [equipment, setEquipment] = useState([]);
-  const [isEquipmentLoading, setIsEquipmentLoading] = useState(false);
+  const [modalUrl, setModalUrl] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const printRef = useRef();
-  const [debugVisible, setDebugVisible] = useState(false);
 
-  const handleCloseModal = () => {
-    setOpenModal(false);
-    setSelectedRowId(null);
-  };
   useEffect(() => {
     getAllRequests()
       .then((list) => {
-        console.log("Список заявок:", list);
-        if (!Array.isArray(list)) {
-          throw new Error("Ожидался массив заявок");
-        }
+        if (!Array.isArray(list)) throw new Error("Ожидался массив заявок");
         const formatted = list.map((item) => ({
           id: item.id_zajav,
           name: item.fio || `Пользователь ${item.id_user}`,
           status: item.status || "На рассмотрении",
           datespo: `${item.datas?.slice(0, 10)} - ${item.datapo?.slice(0, 10)}`,
           summ: item.summ,
+          raw: item, // оригинал заявки
         }));
         setRows(formatted);
       })
@@ -112,54 +91,43 @@ export default function AdminApplicationTable1() {
   };
 
   const handleSaveClick = (id) => async () => {
-  setRowModesModel((prev) => ({ ...prev, [id]: { mode: GridRowModes.View } }));
+    setRowModesModel((prev) => ({
+      ...prev,
+      [id]: { mode: GridRowModes.View },
+    }));
+    const rowToSave = rows.find((row) => row.id === id);
+    if (!rowToSave) return;
 
-  const rowToSave = rows.find((row) => row.id === id);
-  if (!rowToSave) return;
+    try {
+      const [startDate, endDate] = rowToSave.datespo.split(" - ");
+      const dataForApi = {
+        datas: startDate,
+        datapo: endDate,
+        status: rowToSave.status,
+        summ: rowToSave.summ,
+      };
+      await updateRequest(id, dataForApi);
 
-  try {
-    const [startDate, endDate] = rowToSave.datespo.split(' - ');
-    const dataForApi = {
-      datas: startDate,
-      datapo: endDate,
-      status: rowToSave.status,
-      summ: rowToSave.summ,
-    };
-
-    console.log('Saving request:', id, dataForApi);
-    const updatedData = await updateRequest(id, dataForApi);
-
-    // Если сервер возвращает обновлённый объект заявки, обновляем конкретный ряд:
-    // (иначе, если возвращается массив, нужно разобраться в структуре ответа)
-    if (updatedData) {
       setRows((prev) =>
         prev.map((row) =>
-          row.id === id
-            ? { ...row, ...rowToSave, isNew: false } // можно дополнительно взять данные из updatedData, если есть
-            : row
+          row.id === id ? { ...row, ...rowToSave, isNew: false } : row
         )
       );
+    } catch (error) {
+      console.error("Ошибка при сохранении заявки:", error);
+      setErrorMessage("Ошибка при сохранении заявки");
     }
+  };
 
-    console.log('Request updated successfully');
-  } catch (error) {
-    console.error('Ошибка при сохранении заявки:', error);
-    setErrorMessage('Ошибка при сохранении заявки');
-  }
-};
-
-const handleDeleteClick = (id) => async () => {
-  try {
-    console.log('Deleting request:', id);
-    await deleteRequest(id);
-    setRows((prev) => prev.filter((row) => row.id !== id));
-    console.log('Request deleted successfully');
-  } catch (error) {
-    console.error('Ошибка при удалении заявки:', error);
-    setErrorMessage('Ошибка при удалении заявки');
-  }
-};
-
+  const handleDeleteClick = (id) => async () => {
+    try {
+      await deleteRequest(id);
+      setRows((prev) => prev.filter((row) => row.id !== id));
+    } catch (error) {
+      console.error("Ошибка при удалении заявки:", error);
+      setErrorMessage("Ошибка при удалении заявки");
+    }
+  };
 
   const handleCancelClick = (id) => () => {
     setRowModesModel((prev) => ({
@@ -173,19 +141,9 @@ const handleDeleteClick = (id) => async () => {
     }
   };
 
-  const handlePrintClick = async (id) => {
-    const hideFrame = document.createElement("iframe");
-    hideFrame.onload = function () {
-      this.contentWindow.onbeforeunload = () =>
-        document.body.removeChild(hideFrame);
-      this.contentWindow.onafterprint = () =>
-        document.body.removeChild(hideFrame);
-      this.contentWindow.print();
-    };
-    hideFrame.style.display = "none";
-    hideFrame.src =
-      "https://equpment-rent-club.ru/blank-akt-priema-peredachi2.html";
-    document.body.appendChild(hideFrame);
+  const handlePrintClick = () => {
+    setModalUrl("https://equpment-rent-club.ru/blank-akt-priema-peredachi2.html");
+    setOpenModal(true);
   };
 
   const processRowUpdate = (newRow) => {
@@ -219,125 +177,113 @@ const handleDeleteClick = (id) => async () => {
         "Сдано",
       ],
     },
-    {
-      field: "datespo",
-      headerName: "Срок аренды",
-      width: 180,
-      editable: true,
-    },
+    { field: "datespo", headerName: "Срок аренды", width: 180, editable: true },
     {
       field: "actions",
       type: "actions",
       headerName: "Действия",
-      width: 200,
+      width: 250,
       getActions: ({ id }) => {
         const isInEditMode = rowModesModel[id]?.mode === GridRowModes.Edit;
+        const selectHandler = () => {
+          const app = rows.find((r) => r.id === id);
+          if (onSelectApplication && app?.raw) {
+            onSelectApplication({
+              id_zajav: app.raw.id_zajav,
+              datas: app.raw.datas,
+              user_name: app.raw.fio,
+            });
+          }
+        };
 
         return isInEditMode
           ? [
               <GridActionsCellItem
+                key="save"
                 icon={<SaveIcon />}
                 label="Save"
                 onClick={handleSaveClick(id)}
-                sx={{ color: "primary.main" }}
               />,
               <GridActionsCellItem
+                key="cancel"
                 icon={<CancelIcon />}
                 label="Cancel"
                 onClick={handleCancelClick(id)}
-                color="inherit"
               />,
             ]
           : [
               <GridActionsCellItem
+                key="edit"
                 icon={<EditIcon />}
                 label="Edit"
                 onClick={handleEditClick(id)}
-                color="inherit"
               />,
               <GridActionsCellItem
+                key="delete"
                 icon={<DeleteIcon />}
                 label="Delete"
                 onClick={handleDeleteClick(id)}
-                color="inherit"
               />,
               <GridActionsCellItem
+                key="print"
                 icon={<PrintIcon />}
                 label="Print"
-                onClick={() => handlePrintClick(id)}
+                onClick={handlePrintClick}
                 color="primary"
-                disabled={isEquipmentLoading}
               />,
             ];
       },
     },
   ];
 
-  const selectedRow = rows.find((row) => row.id === selectedRowId);
-  const onDataChange = useCallback((data) => {
-    console.log("Equipment updated (modal):", data);
-    setEquipment(data);
-    setIsEquipmentLoading(false);
-  }, []);
-
   return (
-    <Box
-      sx={{
-        height: 500,
-        width: "100%",
-        "& .actions": { color: "text.secondary" },
-        "& .textPrimary": { color: "text.primary" },
-      }}
-    >
-      <DataGrid
-        localeText={ruRU.components.MuiDataGrid.defaultProps.localeText}
-        rows={rows}
-        columns={columns}
-        editMode="row"
-        rowModesModel={rowModesModel}
-        onRowModesModelChange={handleRowModesModelChange}
-        onRowEditStop={handleRowEditStop}
-        processRowUpdate={processRowUpdate}
-        slots={{ toolbar: EditToolbar }}
-        slotProps={{ toolbar: { setRows, setRowModesModel } }}
-      />
-      <Modal open={openModal} onClose={handleCloseModal}>
+    <>
+      <Box sx={{ height: 500, width: "100%" }}>
+        <DataGrid
+          localeText={ruRU.components.MuiDataGrid.defaultProps.localeText}
+          rows={rows}
+          columns={columns}
+          editMode="row"
+          rowModesModel={rowModesModel}
+          onRowModesModelChange={handleRowModesModelChange}
+          onRowEditStop={handleRowEditStop}
+          processRowUpdate={processRowUpdate}
+          slots={{ toolbar: EditToolbar }}
+          slotProps={{ toolbar: { setRows, setRowModesModel } }}
+        />
+      </Box>
+
+      <Modal open={openModal} onClose={() => setOpenModal(false)}>
         <Box
           sx={{
             position: "absolute",
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: "80%",
-            maxHeight: "80vh",
+            width: "80vw",
+            height: "80vh",
             bgcolor: "background.paper",
             boxShadow: 24,
-            p: 4,
-            overflow: "auto",
+            p: 2,
+            borderRadius: 1,
           }}
         >
-          <Typography variant="h6" gutterBottom>
-            Снаряжение для заявки #{selectedRowId}
-          </Typography>
-          {selectedRow && (
-            <>
-              <Typography>ФИО: {selectedRow.name}</Typography>
-              <Typography>Статус: {selectedRow.status}</Typography>
-              <Typography>Срок аренды: {selectedRow.datespo}</Typography>
-            </>
+          {modalUrl && (
+            <iframe
+              src={modalUrl}
+              title="Печать"
+              style={{ width: "100%", height: "100%", border: "none" }}
+            />
           )}
-          <AdminEquipmentTable
-            applicationId={selectedRowId}
-            onDataChange={onDataChange}
-          />
         </Box>
       </Modal>
+
       <Snackbar
         open={!!errorMessage}
         autoHideDuration={6000}
         onClose={() => setErrorMessage("")}
         message={errorMessage}
       />
-    </Box>
+    </>
   );
 }

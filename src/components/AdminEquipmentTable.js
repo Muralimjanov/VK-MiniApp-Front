@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import Box from "@mui/material/Box";
 import Tooltip from "@mui/material/Tooltip";
 import AddIcon from "@mui/icons-material/Add";
@@ -55,7 +55,11 @@ function EditToolbar({ setRows, setRowModesModel }) {
   return (
     <GridToolbarContainer>
       <Tooltip title="Добавить оборудование">
-        <Box component="span" sx={{ cursor: "pointer", p: 1 }} onClick={handleClick}>
+        <Box
+          component="span"
+          sx={{ cursor: "pointer", p: 1 }}
+          onClick={handleClick}
+        >
           <AddIcon fontSize="small" />
         </Box>
       </Tooltip>
@@ -81,6 +85,7 @@ export default function AdminEquipmentTable({ applicationId, onDataChange }) {
   const [rowModesModel, setRowModesModel] = useState({});
   const [errorMessage, setErrorMessage] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const pendingSaveRef = useRef(null);
 
   const handleCloseModal = () => setModalOpen(false);
 
@@ -101,7 +106,7 @@ export default function AdminEquipmentTable({ applicationId, onDataChange }) {
           throw new Error("Ожидался массив, получено: " + JSON.stringify(data));
         }
         const formatted = data.map((item) => ({
-          id: item.id_vid, // обязательно!
+          id: item.id_vid,
           ...item,
         }));
         setRows(formatted);
@@ -129,61 +134,143 @@ export default function AdminEquipmentTable({ applicationId, onDataChange }) {
     setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.Edit } });
   };
 
-const handleSaveClick = (id) => async () => {
-  const rowToSave = rows.find((row) => row.id === id);
+  const handleProcessRowUpdate = (newRow, oldRow) => {
+    console.log("processRowUpdate:", { newRow, oldRow });
 
-  console.log("Сохраняю строку с id:", id);
-  console.log("Данные строки для сохранения:", rowToSave);
+    setRows((prevRows) => {
+      const updatedRows = prevRows.map((row) =>
+        row.id === newRow.id ? newRow : row
+      );
+      console.log("Обновленные rows:", updatedRows);
+      memoizedOnDataChange(updatedRows);
+      return updatedRows;
+    });
 
-  if (!rowToSave) return;
+    return newRow;
+  };
 
-  if (!rowToSave.tnaim || !rowToSave.vnaim) {
-    setErrorMessage("Пожалуйста, заполните Категорию и Наименование перед сохранением!");
-    return;
-  }
+  const handleProcessRowUpdateError = (error) => {
+    console.error("Ошибка processRowUpdate:", error);
+    setErrorMessage("Ошибка при редактировании строки");
+  };
 
-  try {
-    if (rowToSave.isNew) {
-      const id_tip = CATEGORY_ID_MAP[rowToSave.tnaim];
-      if (!id_tip) {
-        setErrorMessage("Некорректная категория");
-        return;
-      }
+  const handleSaveClick = (id) => () => {
+    console.log("handleSaveClick для id:", id);
 
-      await createEquipment({
-        id_tip,
-        vnaim: rowToSave.vnaim,
-        kolich: rowToSave.kolich,
-        zenaz: rowToSave.zenaz,
-        zenapr: rowToSave.zenapr,
-        sost: rowToSave.sost,
-      });
-    } else {
-      await updateEquipment(rowToSave.id, {
-        id_tip: CATEGORY_ID_MAP[rowToSave.tnaim],
-        vnaim: rowToSave.vnaim,
-        kolich: rowToSave.kolich,
-        zenaz: rowToSave.zenaz,
-        zenapr: rowToSave.zenapr,
-        sost: rowToSave.sost,
-      });
-    }
+    pendingSaveRef.current = id;
 
     setRowModesModel((prevModel) => ({
       ...prevModel,
       [id]: { mode: GridRowModes.View },
     }));
+  };
 
-    await loadData();
-    setErrorMessage("");
-  } catch (error) {
-    console.error("Ошибка при сохранении оборудования:", error);
-    setErrorMessage("Ошибка при сохранении оборудования");
-  }
-};
+  useEffect(() => {
+    if (pendingSaveRef.current) {
+      const id = pendingSaveRef.current;
+      pendingSaveRef.current = null;
 
+      const rowToSave = rows.find((row) => row.id === id);
+      console.log("Строка для сохранения (useEffect):", rowToSave);
 
+      if (!rowToSave) {
+        setErrorMessage("Строка не найдена");
+        return;
+      }
 
+      if (!rowToSave.tnaim || !rowToSave.vnaim) {
+        setErrorMessage("Пожалуйста, заполните Категорию и Наименование!");
+        setRowModesModel((prev) => ({
+          ...prev,
+          [id]: { mode: GridRowModes.Edit },
+        }));
+        return;
+      }
+
+      const saveToServer = async () => {
+        try {
+          if (rowToSave.isNew) {
+            const id_tip = CATEGORY_ID_MAP[rowToSave.tnaim];
+            if (!id_tip) {
+              setErrorMessage("Некорректная категория");
+              return;
+            }
+
+            const dataToSend = {
+              id_tip,
+              vnaim: rowToSave.vnaim,
+              kolich: rowToSave.kolich,
+              zenaz: rowToSave.zenaz,
+              zenapr: rowToSave.zenapr,
+              sost: rowToSave.sost,
+            };
+
+            console.log("Отправляем на сервер:", dataToSend);
+            const created = await createEquipment(dataToSend);
+            console.log("Получен ответ от сервера:", created);
+
+            const newId = created.id || created.id_vid;
+
+            if (!newId) {
+              throw new Error("Сервер не вернул ID");
+            }
+
+            const newRowData = {
+              id: newId,
+              id_vid: newId,
+              tnaim: rowToSave.tnaim,
+              vnaim: created.vnaim || rowToSave.vnaim,
+              kolich: created.kolich || rowToSave.kolich,
+              zenaz: created.zenaz || rowToSave.zenaz,
+              zenapr: created.zenapr || rowToSave.zenapr,
+              sost: created.sost || rowToSave.sost,
+              isNew: false,
+            };
+
+            console.log("Данные для обновления строки:", newRowData);
+
+            setRows((prevRows) =>
+              prevRows.map((row) => (row.id === id ? newRowData : row))
+            );
+
+            setRowModesModel((prevModel) => {
+              const newModel = { ...prevModel };
+              delete newModel[id];
+              newModel[newId] = { mode: GridRowModes.View };
+              return newModel;
+            });
+
+            console.log("Новая запись сохранена с ID:", newId);
+          } else {
+            const dataToUpdate = {
+              id_tip: CATEGORY_ID_MAP[rowToSave.tnaim],
+              vnaim: rowToSave.vnaim,
+              kolich: rowToSave.kolich,
+              zenaz: rowToSave.zenaz,
+              zenapr: rowToSave.zenapr,
+              sost: rowToSave.sost,
+            };
+
+            console.log("Обновляем на сервере:", dataToUpdate);
+            const updated = await updateEquipment(rowToSave.id, dataToUpdate);
+            console.log("Обновлено на сервере:", updated);
+          }
+
+          setErrorMessage("");
+        } catch (error) {
+          console.error("Ошибка сохранения на сервер:", error);
+          setErrorMessage("Ошибка при сохранении: " + error.message);
+
+          setRowModesModel((prev) => ({
+            ...prev,
+            [id]: { mode: GridRowModes.Edit },
+          }));
+        }
+      };
+
+      saveToServer();
+    }
+  }, [rows, createEquipment, updateEquipment]);
 
   const handleDeleteClick = (id) => async () => {
     try {
@@ -207,17 +294,22 @@ const handleSaveClick = (id) => async () => {
     }
   };
 
- const processRowUpdate = (newRow) => {
-  console.log("processRowUpdate, newRow:", newRow);
-  const updatedRow = { ...newRow, isNew: false };
-  setRows((prev) => {
-    const updatedRows = prev.map((row) => (row.id === newRow.id ? updatedRow : row));
-    memoizedOnDataChange(updatedRows); // вызываем с обновленными данными
-    return updatedRows;
-  });
-  return updatedRow;
-};
+  const processRowUpdate = (newRow) => {
+    console.log("rocessRowUpdate вызван с newRow:", newRow);
 
+    const updatedRow = { ...newRow };
+
+    setRows((prev) => {
+      const updatedRows = prev.map((row) =>
+        row.id === newRow.id ? updatedRow : row
+      );
+      console.log("Обновленные rows:", updatedRows);
+      memoizedOnDataChange(updatedRows);
+      return updatedRows;
+    });
+
+    return updatedRow;
+  };
 
   const handleRowModesModelChange = (newModel) => {
     setRowModesModel(newModel);
@@ -234,26 +326,65 @@ const handleSaveClick = (id) => async () => {
       valueOptions: ["Горное", "Водное", "Общее"],
     },
     { field: "vnaim", headerName: "Наименование", width: 200, editable: true },
-    { field: "kolich", headerName: "Количество", width: 120, editable: true, type: "number" },
-    { field: "zenaz", headerName: "Залог (₽)", width: 130, editable: true, type: "number" },
-    { field: "zenapr", headerName: "Прокат (₽/день)", width: 130, editable: true, type: "number" },
+    {
+      field: "kolich",
+      headerName: "Количество",
+      width: 120,
+      editable: true,
+      type: "number",
+    },
+    {
+      field: "zenaz",
+      headerName: "Залог (₽)",
+      width: 130,
+      editable: true,
+      type: "number",
+    },
+    {
+      field: "zenapr",
+      headerName: "Прокат (₽/день)",
+      width: 130,
+      editable: true,
+      type: "number",
+    },
     { field: "sost", headerName: "Состав", width: 200, editable: true },
     {
       field: "actions",
       type: "actions",
       headerName: "Действия",
       width: 100,
+
       getActions: ({ id }) => {
         const isInEditMode = rowModesModel[id]?.mode === GridRowModes.Edit;
 
         return isInEditMode
           ? [
-              <GridActionsCellItem key="save" icon={<SaveIcon />} label="Save" onClick={handleSaveClick(id)} />,
-              <GridActionsCellItem key="cancel" icon={<CancelIcon />} label="Cancel" onClick={handleCancelClick(id)} />,
+              <GridActionsCellItem
+                key="save"
+                icon={<SaveIcon />}
+                label="Save"
+                onClick={handleSaveClick(id)}
+              />,
+              <GridActionsCellItem
+                key="cancel"
+                icon={<CancelIcon />}
+                label="Cancel"
+                onClick={handleCancelClick(id)}
+              />,
             ]
           : [
-              <GridActionsCellItem key="edit" icon={<EditIcon />} label="Edit" onClick={handleEditClick(id)} />,
-              <GridActionsCellItem key="delete" icon={<DeleteIcon />} label="Delete" onClick={handleDeleteClick(id)} />,
+              <GridActionsCellItem
+                key="edit"
+                icon={<EditIcon />}
+                label="Edit"
+                onClick={handleEditClick(id)}
+              />,
+              <GridActionsCellItem
+                key="delete"
+                icon={<DeleteIcon />}
+                label="Delete"
+                onClick={handleDeleteClick(id)}
+              />,
             ];
       },
     },
@@ -269,19 +400,23 @@ const handleSaveClick = (id) => async () => {
         rowModesModel={rowModesModel}
         onRowModesModelChange={handleRowModesModelChange}
         onRowEditStop={handleRowEditStop}
-        processRowUpdate={processRowUpdate}
+        processRowUpdate={handleProcessRowUpdate}
+        onProcessRowUpdateError={handleProcessRowUpdateError}
         slots={{ toolbar: EditToolbar }}
         slotProps={{ toolbar: { setRows, setRowModesModel } }}
         showToolbar
       />
       {errorMessage && (
-        <Box sx={{ mt: 1, color: "error.main", textAlign: "center" }}>{errorMessage}</Box>
+        <Box sx={{ mt: 1, color: "error.main", textAlign: "center" }}>
+          {errorMessage}
+        </Box>
       )}
 
       <Modal open={modalOpen} onClose={handleCloseModal}>
         <Box sx={modalStyle}>
           <Typography variant="body1" sx={{ mb: 2 }}>
-            Нельзя удалить категорию: к ней привязано снаряжение, сначала уберите его из категории
+            Нельзя удалить категорию: к ней привязано снаряжение, сначала
+            уберите его из категории
           </Typography>
           <Button variant="contained" onClick={handleCloseModal}>
             Понятно

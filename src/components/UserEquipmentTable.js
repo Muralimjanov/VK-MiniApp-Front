@@ -3,11 +3,7 @@ import { useEffect, useCallback, useState } from 'react';
 import Box from '@mui/material/Box';
 import Tooltip from '@mui/material/Tooltip';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
 import CartIcon from '@mui/icons-material/AddShoppingCart';
-import DeleteIcon from '@mui/icons-material/DeleteOutlined';
-import SaveIcon from '@mui/icons-material/Save';
-import CancelIcon from '@mui/icons-material/Close';
 import { getAllEquipments } from '../api/Equipments';
 import {
     GridRowModes,
@@ -19,25 +15,8 @@ import {
 } from '@mui/x-data-grid';
 import { ruRU } from '@mui/x-data-grid/locales';
 import {
-    randomCreatedDate,
-    randomTraderName,
     randomId,
-    randomArrayItem,
 } from '@mui/x-data-grid-generator';
-
-const roles = ['Market', 'Finance', 'Development'];
-const randomRole = () => {
-    return randomArrayItem(roles);
-};
-
-
-
-// const initialRows = [
-//     { id: 1, tnaim: 'Горное', vnaim: 'Шнур 16-прядный 6мм', kolich: 14, zenaz: 100, zenapr: 10 },
-//     { id: 2, tnaim: 'Горное', vnaim: 'Карабин "Ринг"(сталь)', kolich: 3, zenaz: 200, zenapr: 20 },
-//     { id: 3, tnaim: 'Водное', vnaim: 'Заглушка', kolich: 6, zenaz: 300, zenapr: 30 },
-//     { id: 4, tnaim: 'Водное', vnaim: 'Байдарка "Таймень"', kolich: 7, zenaz: 4000, zenapr: 40 },
-// ];
 
 function EditToolbar(props) {
     const { setRows, setRowModesModel } = props;
@@ -65,7 +44,7 @@ function EditToolbar(props) {
     );
 }
 
-export default function FullFeaturedCrudGrid() {
+export default function UserEquipmentsTable({ onAddToCart }) {
     const [rows, setRows] = useState([]);
     const [rowModesModel, setRowModesModel] = useState({});
 
@@ -98,27 +77,11 @@ export default function FullFeaturedCrudGrid() {
         }
     };
 
-    const handleEditClick = (id) => () => {
-        setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.Edit } });
-    };
-
-    const handleSaveClick = (id) => () => {
-        setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } });
-    };
-
-    const handleDeleteClick = (id) => () => {
-        setRows(rows.filter((row) => row.id !== id));
-    };
-
-    const handleCancelClick = (id) => () => {
-        setRowModesModel({
-            ...rowModesModel,
-            [id]: { mode: GridRowModes.View, ignoreModifications: true },
-        });
-
-        const editedRow = rows.find((row) => row.id === id);
-        if (editedRow.isNew) {
-            setRows(rows.filter((row) => row.id !== id));
+    const handleAddToCart = (id) => {
+        const selectedItem = rows.find((row) => row.id === id);
+        if (selectedItem && onAddToCart) {
+            onAddToCart(selectedItem);
+            console.log(`Товар "${selectedItem.vnaim}" добавлен в заявку`);
         }
     };
 
@@ -137,7 +100,7 @@ export default function FullFeaturedCrudGrid() {
         {
             field: 'tnaim',
             headerName: 'Категория',
-            width: 30,
+            width: 150,
             align: 'left',
             headerAlign: 'left',
             editable: false,
@@ -147,13 +110,13 @@ export default function FullFeaturedCrudGrid() {
         {
             field: 'vnaim',
             headerName: 'Наименование',
-            width: 200,
+            width: 250,
             editable: false,
         },
         {
             field: 'kolich',
             headerName: 'Количество',
-            width: 50,
+            width: 120,
             editable: false,
             type: 'number',
         },
@@ -167,7 +130,7 @@ export default function FullFeaturedCrudGrid() {
         {
             field: 'zenapr',
             headerName: 'Прокат (₽/день)',
-            width: 30,
+            width: 150,
             editable: false,
             type: 'number',
         },
@@ -176,23 +139,12 @@ export default function FullFeaturedCrudGrid() {
             type: 'actions',
             headerName: 'Действия',
             width: 100,
-            // cellClassName: 'actions',
-            // getActions: ({ id }) => {
-            //     return [
-            //         <GridActionsCellItem
-            //             icon={<CartIcon />}
-            //             label="Add"
-            //             className="textPrimary"
-            //             onClick={handleEditClick(id)}
-            //             color="inherit"
-            //         />,
-            //     ];
-            // },
             getActions: ({ id }) => [
                 <GridActionsCellItem
+                key="cart"
                     icon={<CartIcon />}
-                    label="Выбрать"
-                    onClick={() => console.log(`Выбрана строка ${id}`)}
+                    label="Добавить в заявку"
+                    onClick={() => handleAddToCart(id)}
                     color="inherit"
                 />,
             ],
@@ -228,8 +180,6 @@ export default function FullFeaturedCrudGrid() {
                 slotProps={{
                     toolbar: { setRows, setRowModesModel },
                 }}
-
-
             />
         </Box>
     );
